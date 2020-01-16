@@ -4,8 +4,9 @@
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
+#include <fusb302.h>
 
-extern "C" void app_main(void)
+void app_main(void)
 {
-
+    fusb302_init(21, 22, 4);
 }

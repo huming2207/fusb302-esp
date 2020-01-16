@@ -1,4 +1,5 @@
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <freertos/task.h>
 
 #include <hal/i2c_types.h>
@@ -13,6 +14,24 @@
 #define FUSB302_ADDR 0x22
 
 #define TAG "fusb302_drv"
+
+static xQueueHandle intr_evt_queue = NULL;
+
+static void IRAM_ATTR gpio_isr_handler(void* arg)
+{
+    uint32_t gpio_num = (uint32_t) arg;
+    xQueueSendFromISR(intr_evt_queue, &gpio_num, NULL);
+}
+
+static void fusb302_intr_task(void* arg)
+{
+    uint32_t io_num;
+    for(;;) {
+        if(xQueueReceive(intr_evt_queue, &io_num, portMAX_DELAY)) {
+            printf("GPIO[%d] intr, val: %d\n", io_num, gpio_get_level(io_num));
+        }
+    }
+}
 
 static void i2c_read_burst(uint8_t addr, uint8_t reg, uint8_t *rx_buf, size_t rx_len)
 {
@@ -71,10 +90,40 @@ esp_err_t fusb302_init(int sda, int scl, int intr)
     err = err ?: i2c_driver_install(I2C_NUM_0, fusb_i2c_config.mode, 0, 0, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set I2C");
+        return err;
     }
+
+    // Setup INTR pin
+    gpio_config_t intr_gpio_conf = {
+            .mode = GPIO_MODE_INPUT,
+            .intr_type = GPIO_INTR_POSEDGE,
+            .pull_down_en = 0,
+            .pull_up_en = 0,
+            .pin_bit_mask = (1U << (uint32_t)intr)
+    };
+
+    gpio_config(&intr_gpio_conf);
 
     // Reset FUSB302 and PD
     fusb302_reset(true, true);
+
+    // Create GPIO Interrupt queue
+    intr_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+    if (intr_evt_queue == NULL) {
+        ESP_LOGE(TAG, "Cannot create interrupt queue");
+        return ESP_ERR_NO_MEM;
+    }
+
+    // Start GPIO Interrupt task
+    xTaskCreate(fusb302_intr_task, "fusb302_intr", 4096, NULL, 10, NULL);
+
+    // Setup interrupt service
+    err = gpio_install_isr_service(0);
+    err = err ?: gpio_isr_handler_add(intr, gpio_isr_handler, (void*)intr);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Cannot setup GPIO interrupt services");
+        return err;
+    }
 
     // Read Device ID
     uint8_t dev_id = fusb302_get_dev_id();
