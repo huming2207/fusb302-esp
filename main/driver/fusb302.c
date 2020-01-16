@@ -1,12 +1,18 @@
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include <hal/i2c_types.h>
 #include <hal/gpio_types.h>
 #include <driver/i2c.h>
+#include <esp_log.h>
 #include "fusb302.h"
 
 #define I2C_WRITE_BIT 0
 #define I2C_READ_BIT 1
 
 #define FUSB302_ADDR 0x22
+
+#define TAG "fusb302_drv"
 
 static void i2c_read_burst(uint8_t addr, uint8_t reg, uint8_t *rx_buf, size_t rx_len)
 {
@@ -51,6 +57,7 @@ static uint8_t i2c_read(uint8_t addr, uint8_t reg)
 
 esp_err_t fusb302_init(int sda, int scl, int intr)
 {
+    // Setup I2C
     i2c_config_t fusb_i2c_config = {
             .mode = I2C_MODE_MASTER,
             .sda_io_num = (gpio_num_t)sda,
@@ -60,9 +67,42 @@ esp_err_t fusb302_init(int sda, int scl, int intr)
             .master.clk_speed = 100000,
     };
 
-    i2c_param_config(I2C_NUM_0, &fusb_i2c_config);
-    ESP_ERROR_CHECK(i2c_driver_install(I2C_NUM_0, fusb_i2c_config.mode, 0, 0, 0));
+    esp_err_t err = i2c_param_config(I2C_NUM_0, &fusb_i2c_config);
+    err = err ?: i2c_driver_install(I2C_NUM_0, fusb_i2c_config.mode, 0, 0, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set I2C");
+    }
 
+    // Reset FUSB302 and PD
+    fusb302_reset(true, true);
+
+    // Read Device ID
+    uint8_t dev_id = fusb302_get_dev_id();
+    ESP_LOGI(TAG, "Init sequence started, DevID: 0x%02x", dev_id);
+
+    // Retry 3 times, auto retry enable
+    uint8_t reg_ctrl_3 = fusb302_get_ctrl_3();
+    reg_ctrl_3 |= FUSB302_REG_CONTROL3_AUTO_RETRY;
+    reg_ctrl_3 |= PD_RETRY_COUNT << FUSB302_REG_CONTROL3_N_RETRIES_POS;
+    fusb302_set_ctrl_3(reg_ctrl_3);
+
+    // Switches0: Enable pull-downs, monitor CC1
+    fusb302_set_switch_0(FUSB302_REG_SWITCHES0_CC1_PD_EN |
+                                FUSB302_REG_SWITCHES0_CC2_PD_EN |
+                                FUSB302_REG_SWITCHES0_MEAS_CC1);
+
+    // Mask interrupts
+    fusb302_set_mask(0xEF); // All except CRC_CHK
+    fusb302_set_mask_a(0xFF);
+    fusb302_set_mask_b(FUSB302_REG_MASK_B_GCRCSENT);
+
+    // Switches1: CC1 Tx Enable, PD 2.0, Auto CRC Enable
+    fusb302_set_switch_1(FUSB302_REG_SWITCHES1_TXCC1_EN |
+                            FUSB302_REG_SWITCHES1_AUTO_GCRC |
+                            FUSB302_REG_SWITCHES1_SPECREV1);
+
+    // Enable all power
+    fusb302_set_power(FUSB302_REG_POWER_PWR_ALL);
     return ESP_OK;
 }
 

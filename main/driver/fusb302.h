@@ -14,7 +14,7 @@
 #define FUSB302_DEVID_302B 0x09
 
 /* Default retry count for transmitting */
-#define PD_RETRY_COUNT		3
+#define PD_RETRY_COUNT		3U
 
 #define FUSB302_REG_DEVICE_ID	0x01
 
