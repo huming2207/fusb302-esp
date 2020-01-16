@@ -13,16 +13,6 @@
 #define FUSB302_DEVID_302A 0x08
 #define FUSB302_DEVID_302B 0x09
 
-/* I2C slave address varies by part number */
-/* FUSB302BUCX / FUSB302BMPX */
-#define FUSB302_I2C_SLAVE_ADDR_FLAGS 0x22
-/* FUSB302B01MPX */
-#define FUSB302_I2C_SLAVE_ADDR_B01_FLAGS 0x23
-/* FUSB302B10MPX */
-#define FUSB302_I2C_SLAVE_ADDR_B10_FLAGS 0x24
-/* FUSB302B11MPX */
-#define FUSB302_I2C_SLAVE_ADDR_B11_FLAGS 0x25
-
 /* Default retry count for transmitting */
 #define PD_RETRY_COUNT		3
 
@@ -50,6 +40,9 @@
 #define FUSB302_REG_MEASURE	0x04
 #define FUSB302_REG_MEASURE_MDAC_MASK	0x3F
 #define FUSB302_REG_MEASURE_VBUS		(1U<<6U)
+
+#define FUSB302_REG_SLICE   0x05
+
 /*
  * MDAC reference voltage step size is 42 mV. Round our thresholds to reduce
  * maximum error, which also matches suggested thresholds in datasheet
@@ -115,6 +108,8 @@
 #define FUSB302_REG_RESET_PD_RESET		(1U<<1U)
 #define FUSB302_REG_RESET_SW_RESET		(1U<<0U)
 
+#define FUSB302_REG_OCP         0x0D
+
 #define FUSB302_REG_MASK_A		0x0E
 #define FUSB302_REG_MASK_A_OCP_TEMP		(1U<<7U)
 #define FUSB302_REG_MASK_A_TOGDONE		(1U<<6U)
@@ -134,6 +129,8 @@
 #define FUSB302_REG_STATUS0A_POWER		(1U<<2U) /* two-bit field */
 #define FUSB302_REG_STATUS0A_RX_SOFT_RESET	(1U<<1U)
 #define FUSB302_REG_STATUS0A_RX_HARD_RESEt	(1U<<0U)
+
+#define FUSB302_REG_CONTROL4    0x10
 
 #define FUSB302_REG_STATUS1A	0x3D
 /* three-bit field, valid values below */
@@ -221,10 +218,84 @@ esp_err_t fusb302_init(int sda, int scl, int intr);
 
 uint8_t fusb302_get_dev_id();
 
-void fusb302_set_switch_0();
+void fusb302_set_switch_0(uint8_t val);
 
-uint8_t fust302_get_switch_0();
+uint8_t fusb302_get_switch_0();
 
-void fusb302_set_switch_1();
+void fusb302_set_switch_1(uint8_t val);
 
-void fusb302_set_measure();
+uint8_t fusb302_get_switch_1();
+
+void fusb302_set_measure(uint8_t val);
+
+uint8_t fusb302_get_measure();
+
+void fusb302_set_slice(uint8_t val);
+
+uint8_t fusb302_get_slice();
+
+void fusb302_set_ctrl_0(uint8_t val);
+
+uint8_t fusb302_get_ctrl_0();
+
+void fusb302_set_ctrl_1(uint8_t val);
+
+uint8_t fusb302_get_ctrl_1();
+
+void fusb302_set_ctrl_2(uint8_t val);
+
+uint8_t fusb302_get_ctrl_2();
+
+void fusb302_set_ctrl_3(uint8_t val);
+
+uint8_t fusb302_get_ctrl_3();
+
+void fusb302_set_ctrl_4(uint8_t val);
+
+uint8_t fusb302_get_ctrl_4();
+
+void fusb302_set_mask(uint8_t val);
+
+uint8_t fusb302_get_mask();
+
+void fusb302_set_power(uint8_t val);
+
+uint8_t fusb302_get_power();
+
+void fusb302_reset(bool pd_rst, bool sw_rst);
+
+uint8_t fusb302_get_ocp();
+
+void fusb302_set_ocp(uint8_t val);
+
+void fusb302_set_mask_a(uint8_t val);
+
+uint8_t fusb302_get_mask_a();
+
+void fusb302_set_mask_b(uint8_t val);
+
+uint8_t fusb302_get_mask_b();
+
+uint8_t fusb302_get_status_0a();
+
+uint8_t fusb302_get_status_1a();
+
+uint8_t fusb302_get_status_0();
+
+uint8_t fusb302_get_status_1();
+
+void fusb302_clear_interrupt_a(uint8_t val);
+
+uint8_t fusb302_get_interrupt_a();
+
+void fusb302_clear_interrupt_b(uint8_t val);
+
+uint8_t fusb302_get_interrupt_b();
+
+void fusb302_clear_interrupt(uint8_t val);
+
+uint8_t fusb302_get_interrupt();
+
+void fusb302_write_fifo(uint8_t *buf, size_t len);
+
+void fusb302_read_fifo(uint8_t *buf, size_t len);

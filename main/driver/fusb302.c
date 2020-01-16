@@ -6,6 +6,8 @@
 #define I2C_WRITE_BIT 0
 #define I2C_READ_BIT 1
 
+#define FUSB302_ADDR 0x22
+
 static void i2c_read_burst(uint8_t addr, uint8_t reg, uint8_t *rx_buf, size_t rx_len)
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -18,7 +20,6 @@ static void i2c_read_burst(uint8_t addr, uint8_t reg, uint8_t *rx_buf, size_t rx
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (addr << 1U) | I2C_READ_BIT, true));
     ESP_ERROR_CHECK(i2c_master_read(cmd, rx_buf, rx_len, I2C_MASTER_LAST_NACK));
     ESP_ERROR_CHECK(i2c_master_stop(cmd));
-
     ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
     i2c_cmd_link_delete(cmd);
 }
@@ -36,12 +37,12 @@ static void i2c_write_burst(uint8_t addr, uint8_t reg, uint8_t *tx_buf, size_t t
     i2c_cmd_link_delete(cmd);
 }
 
-static inline void i2c_write(uint8_t addr, uint8_t reg, uint8_t param)
+static void i2c_write(uint8_t addr, uint8_t reg, uint8_t param)
 {
     i2c_write_burst(addr, reg, &param, 1);
 }
 
-static inline uint8_t i2c_read(uint8_t addr, uint8_t reg)
+static uint8_t i2c_read(uint8_t addr, uint8_t reg)
 {
     uint8_t result = 0;
     i2c_read_burst(addr, reg, &result, 1);
@@ -63,6 +64,218 @@ esp_err_t fusb302_init(int sda, int scl, int intr)
     ESP_ERROR_CHECK(i2c_driver_install(I2C_NUM_0, fusb_i2c_config.mode, 0, 0, 0));
 
     return ESP_OK;
+}
+
+uint8_t fusb302_get_dev_id()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_DEVICE_ID);
+}
+
+void fusb302_set_switch_0(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_SWITCHES0, val);
+}
+
+uint8_t fusb302_get_switch_0()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_SWITCHES0);
+}
+
+void fusb302_set_switch_1(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_SWITCHES1, val);
+}
+
+uint8_t fusb302_get_switch_1()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_SWITCHES1);
+}
+
+void fusb302_set_measure(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_MEASURE, val);
+}
+
+uint8_t fusb302_get_measure()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_MEASURE);
+}
+
+void fusb302_set_slice(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_SLICE, val);
+}
+
+uint8_t fusb302_get_slice()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_SLICE);
+}
+
+void fusb302_set_ctrl_0(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL0, val);
+}
+
+uint8_t fusb302_get_ctrl_0()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL0);
+}
+
+void fusb302_set_ctrl_1(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL1, val);
+}
+
+uint8_t fusb302_get_ctrl_1()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL1);
+}
+
+void fusb302_set_ctrl_2(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL2, val);
+}
+
+uint8_t fusb302_get_ctrl_2()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL2);
+}
+
+void fusb302_set_ctrl_3(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL3, val);
+}
+
+uint8_t fusb302_get_ctrl_3()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL3);
+}
+
+void fusb302_set_ctrl_4(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL4, val);
+}
+
+uint8_t fusb302_get_ctrl_4()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL4);
+}
+
+void fusb302_set_mask(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_MASK, val);
+}
+
+uint8_t fusb302_get_mask()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_MASK);
+}
+
+void fusb302_set_power(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_POWER, val);
+}
+
+uint8_t fusb302_get_power()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_POWER);
+}
+
+void fusb302_reset(bool pd_rst, bool sw_rst)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_RESET,
+                (pd_rst ? FUSB302_REG_RESET_PD_RESET : 0U) |
+                (sw_rst ? FUSB302_REG_RESET_SW_RESET : 0U));
+}
+
+uint8_t fusb302_get_ocp()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_OCP);
+}
+
+void fusb302_set_ocp(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_OCP, val);
+}
+
+void fusb302_set_mask_a(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_MASK_A, val);
+}
+
+uint8_t fusb302_get_mask_a()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_MASK_A);
+}
+
+void fusb302_set_mask_b(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_MASK_B, val);
+}
+
+uint8_t fusb302_get_mask_b()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_MASK_B);
+}
+
+uint8_t fusb302_get_status_0a()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS0A);
+}
+
+uint8_t fusb302_get_status_1a()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS1A);
+}
+
+uint8_t fusb302_get_status_0()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS0);
+}
+
+uint8_t fusb302_get_status_1()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS1);
+}
+
+void fusb302_clear_interrupt_a(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_INTERRUPT_A, val);
+}
+
+uint8_t fusb302_get_interrupt_a()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_INTERRUPT_A);
+}
+
+void fusb302_clear_interrupt_b(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_INTERRUPT_B, val);
+}
+
+uint8_t fusb302_get_interrupt_b()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_INTERRUPT_B);
+}
+
+void fusb302_clear_interrupt(uint8_t val)
+{
+    i2c_write(FUSB302_ADDR, FUSB302_REG_INTERRUPT, val);
+}
+
+uint8_t fusb302_get_interrupt()
+{
+    return i2c_read(FUSB302_ADDR, FUSB302_REG_INTERRUPT);
+}
+
+void fusb302_write_fifo(uint8_t *buf, size_t len)
+{
+    i2c_write_burst(FUSB302_ADDR, FUSB302_REG_FIFOS, buf, len);
+}
+
+void fusb302_read_fifo(uint8_t *buf, size_t len)
+{
+    i2c_read_burst(FUSB302_ADDR, FUSB302_REG_FIFOS, buf, len);
 }
 
 
