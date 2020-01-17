@@ -4,7 +4,7 @@
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
-#include <fusb302.h>
+#include <drv_fusb302.h>
 
 void app_main(void)
 {

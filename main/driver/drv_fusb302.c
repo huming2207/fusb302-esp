@@ -6,7 +6,7 @@
 #include <hal/gpio_types.h>
 #include <driver/i2c.h>
 #include <esp_log.h>
-#include "fusb302.h"
+#include "drv_fusb302.h"
 
 #define I2C_WRITE_BIT 0
 #define I2C_READ_BIT 1
