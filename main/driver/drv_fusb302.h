@@ -9,6 +9,7 @@
 
 /* Chip Device ID - 302A or 302B */
 #include <esp_err.h>
+#include "tcpc_drv.h"
 
 #define FUSB302_DEVID_302A 0x08
 #define FUSB302_DEVID_302B 0x09
@@ -214,7 +215,7 @@ typedef enum {
 } fusb302_rx_token_t;
 
 
-esp_err_t fusb302_init(int sda, int scl, int intr);
+esp_err_t fusb302_init(int sda, int scl, int intr, tcpc_drv_t *drv_handle);
 
 uint8_t fusb302_get_dev_id();
 

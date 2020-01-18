@@ -7,6 +7,7 @@
 #include <driver/i2c.h>
 #include <esp_log.h>
 #include "drv_fusb302.h"
+#include "tcpc_drv.h"
 
 #define I2C_WRITE_BIT 0
 #define I2C_READ_BIT 1
@@ -74,7 +75,7 @@ static uint8_t i2c_read(uint8_t addr, uint8_t reg)
     return result;
 }
 
-esp_err_t fusb302_init(int sda, int scl, int intr)
+esp_err_t fusb302_init(int sda, int scl, int intr, tcpc_drv_t *drv_handle)
 {
     // Setup I2C
     i2c_config_t fusb_i2c_config = {
