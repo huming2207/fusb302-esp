@@ -214,7 +214,6 @@ typedef enum {
     FUSB302_TKN_SOP2DB  = 0b01100000
 } fusb302_rx_token_t;
 
-
 esp_err_t fusb302_init(int sda, int scl, int intr, tcpc_drv_t *drv_handle);
 
 uint8_t fusb302_get_dev_id();
@@ -296,7 +295,3 @@ uint8_t fusb302_get_interrupt_b();
 void fusb302_clear_interrupt(uint8_t val);
 
 uint8_t fusb302_get_interrupt();
-
-void fusb302_write_fifo(uint8_t *buf, size_t len);
-
-void fusb302_read_fifo(uint8_t *buf, size_t len);

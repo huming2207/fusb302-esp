@@ -9,10 +9,10 @@
 #include "drv_fusb302.h"
 #include "tcpc_drv.h"
 
-#define I2C_WRITE_BIT 0
-#define I2C_READ_BIT 1
+#define I2C_WRITE_BIT 0U
+#define I2C_READ_BIT 1U
 
-#define FUSB302_ADDR 0x22
+#define FUSB302_ADDR 0x22U
 
 #define TAG "fusb302_drv"
 
@@ -24,55 +24,148 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
     xQueueSendFromISR(intr_evt_queue, &gpio_num, NULL);
 }
 
+static void fusb302_write_reg(uint8_t reg, uint8_t param)
+{
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    ESP_ERROR_CHECK(i2c_master_start(cmd));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(FUSB302_ADDR << 1U) | I2C_WRITE_BIT, true));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, reg, true));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, param, true));
+    ESP_ERROR_CHECK(i2c_master_stop(cmd));
+
+    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
+    i2c_cmd_link_delete(cmd);
+}
+
+static uint8_t fusb302_read_reg(uint8_t reg)
+{
+    uint8_t result = 0;
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    ESP_ERROR_CHECK(i2c_master_start(cmd));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(FUSB302_ADDR << 1U) | I2C_WRITE_BIT, true));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, reg, true));
+
+    ESP_ERROR_CHECK(i2c_master_start(cmd));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(FUSB302_ADDR << 1U) | I2C_READ_BIT, true));
+    ESP_ERROR_CHECK(i2c_master_read_byte(cmd, &result, I2C_MASTER_LAST_NACK));
+
+    ESP_ERROR_CHECK(i2c_master_stop(cmd));
+    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
+    i2c_cmd_link_delete(cmd);
+    return result;
+}
+
+static esp_err_t fusb302_write_fifo(tcpc_drv_t *drv_handle, uint16_t header, const uint32_t *data_objs, size_t obj_cnt)
+{
+    if (drv_handle == NULL || data_objs == NULL || obj_cnt < 0) return ESP_ERR_INVALID_ARG;
+
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    ESP_ERROR_CHECK(i2c_master_start(cmd));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(FUSB302_ADDR << 1U) | I2C_WRITE_BIT, true));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, FUSB302_REG_FIFOS, true));
+
+    // Step 1. Send SOP tokens
+    uint8_t sop_token[4] = { FUSB302_TKN_SYNC1, FUSB302_TKN_SYNC1, FUSB302_TKN_SYNC1, FUSB302_TKN_SYNC2 };
+    ESP_ERROR_CHECK(i2c_master_write(cmd, sop_token, sizeof(sop_token), true));
+
+    // Step 2. Send packet header
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(header & 0xffU), true));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(header >> 8U), true));
+
+    // Step 3. Send data objects
+    for (size_t idx = 0; idx < obj_cnt; idx ++) {
+        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] & 0xffU), true));
+        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 8U), true));
+        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 16U), true));
+        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 24U), true));
+    }
+
+    ESP_ERROR_CHECK(i2c_master_stop(cmd));
+    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
+    i2c_cmd_link_delete(cmd);
+    return ESP_OK;
+}
+
+
+/**
+ * Read FIFO
+ * @param drv_handle[in]
+ * @param header[out] PD Header (2 bytes, 16 bits)
+ * @param data_objs[out] Data objects (4 bytes, 32 bits for each)
+ * @param max_cnt Maxmium data objects can be received
+ * @param actual_cnt Actual received data objects
+ * @return
+ *
+ */
+static esp_err_t fusb302_read_fifo(tcpc_drv_t *drv_handle,
+                                   uint16_t *header, uint32_t *data_objs,
+                                   size_t max_cnt, size_t *actual_cnt)
+{
+    if (drv_handle == NULL || header == NULL || data_objs == NULL || actual_cnt == NULL) return ESP_ERR_INVALID_ARG;
+
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+
+    ESP_ERROR_CHECK(i2c_master_start(cmd));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (FUSB302_ADDR << 1U) | I2C_WRITE_BIT, true));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, FUSB302_REG_FIFOS, true));
+
+    ESP_ERROR_CHECK(i2c_master_start(cmd));
+    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (FUSB302_ADDR << 1U) | I2C_READ_BIT, true));
+
+    // Step 1. Read first token byte
+    uint8_t token_byte = 0;
+    ESP_ERROR_CHECK(i2c_master_read_byte(cmd, &token_byte, I2C_MASTER_ACK));
+    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
+
+    // Step 2. Read header, 2 bytes
+    uint8_t header_bytes[2] = { 0 };
+    ESP_ERROR_CHECK(i2c_master_read(cmd, header_bytes, 2, I2C_MASTER_ACK));
+    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
+    *header = (uint16_t)(header_bytes[1] << 8U) | header_bytes[0];
+
+    // Step 3. Calculate packet length
+    uint8_t data_obj_cnt = TCPC_PD_HEADER_DATA_OBJ_CNT(*header);
+    *actual_cnt = data_obj_cnt;
+
+    // Step 4. Read data object (if it is not a control message)
+    if (data_obj_cnt > 0) {
+        if (data_obj_cnt > max_cnt) {
+            ESP_LOGE(TAG, "Buffer is too small: got %u DO's, but max space is %u", data_obj_cnt, max_cnt);
+            return ESP_ERR_NO_MEM;
+        }
+
+        uint8_t data_obj_bytes[28] = { 0 }; // Maximum data objects is 7, so 7 * 4 = 28 bytes
+        ESP_ERROR_CHECK(i2c_master_read(cmd, data_obj_bytes, sizeof(data_obj_bytes), I2C_MASTER_ACK));
+        ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
+
+        // Copy to output buffer
+        for (size_t idx = 0; idx < data_obj_cnt * 4; idx += 4) {
+            data_objs[idx] = (uint32_t)(data_obj_bytes[idx + 3] << 24U) |
+                            (uint32_t)(data_obj_bytes[idx + 2] << 16U) |
+                            (uint32_t)(data_obj_bytes[idx + 1] << 8U)  | data_obj_bytes[idx];
+        }
+    }
+
+    // Step 5. Read CRC-32
+    uint8_t checksum_bytes[4] = { 0 };
+    ESP_ERROR_CHECK(i2c_master_read(cmd, checksum_bytes, sizeof(checksum_bytes), I2C_MASTER_LAST_NACK));
+
+    ESP_ERROR_CHECK(i2c_master_stop(cmd));
+    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
+    i2c_cmd_link_delete(cmd);
+
+    return ESP_OK;
+}
+
 static void fusb302_intr_task(void* arg)
 {
     uint32_t io_num;
+    tcpc_drv_t *drv_handle = (tcpc_drv_t *)arg;
     for(;;) {
         if(xQueueReceive(intr_evt_queue, &io_num, portMAX_DELAY)) {
             printf("GPIO[%d] intr, val: %d\n", io_num, gpio_get_level(io_num));
         }
     }
-}
-
-static void i2c_read_burst(uint8_t addr, uint8_t reg, uint8_t *rx_buf, size_t rx_len)
-{
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-
-    ESP_ERROR_CHECK(i2c_master_start(cmd));
-    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (addr << 1U) | I2C_WRITE_BIT, true));
-    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, reg, true));
-
-    ESP_ERROR_CHECK(i2c_master_start(cmd));
-    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (addr << 1U) | I2C_READ_BIT, true));
-    ESP_ERROR_CHECK(i2c_master_read(cmd, rx_buf, rx_len, I2C_MASTER_LAST_NACK));
-    ESP_ERROR_CHECK(i2c_master_stop(cmd));
-    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
-    i2c_cmd_link_delete(cmd);
-}
-
-static void i2c_write_burst(uint8_t addr, uint8_t reg, uint8_t *tx_buf, size_t tx_len)
-{
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    ESP_ERROR_CHECK(i2c_master_start(cmd));
-    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (addr << 1U) | I2C_WRITE_BIT, true));
-    ESP_ERROR_CHECK(i2c_master_write_byte(cmd, reg, true));
-    ESP_ERROR_CHECK(i2c_master_write(cmd, tx_buf, tx_len, true));
-    ESP_ERROR_CHECK(i2c_master_stop(cmd));
-
-    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
-    i2c_cmd_link_delete(cmd);
-}
-
-static void i2c_write(uint8_t addr, uint8_t reg, uint8_t param)
-{
-    i2c_write_burst(addr, reg, &param, 1);
-}
-
-static uint8_t i2c_read(uint8_t addr, uint8_t reg)
-{
-    uint8_t result = 0;
-    i2c_read_burst(addr, reg, &result, 1);
-    return result;
 }
 
 esp_err_t fusb302_init(int sda, int scl, int intr, tcpc_drv_t *drv_handle)
@@ -116,7 +209,7 @@ esp_err_t fusb302_init(int sda, int scl, int intr, tcpc_drv_t *drv_handle)
     }
 
     // Start GPIO Interrupt task
-    xTaskCreate(fusb302_intr_task, "fusb302_intr", 4096, NULL, 10, NULL);
+    xTaskCreate(fusb302_intr_task, "fusb302_intr", 4096, drv_handle, 10, NULL);
 
     // Setup interrupt service
     err = gpio_install_isr_service(0);
@@ -158,214 +251,202 @@ esp_err_t fusb302_init(int sda, int scl, int intr, tcpc_drv_t *drv_handle)
 
 uint8_t fusb302_get_dev_id()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_DEVICE_ID);
+    return fusb302_read_reg(FUSB302_REG_DEVICE_ID);
 }
 
 void fusb302_set_switch_0(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_SWITCHES0, val);
+    fusb302_write_reg(FUSB302_REG_SWITCHES0, val);
 }
 
 uint8_t fusb302_get_switch_0()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_SWITCHES0);
+    return fusb302_read_reg(FUSB302_REG_SWITCHES0);
 }
 
 void fusb302_set_switch_1(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_SWITCHES1, val);
+    fusb302_write_reg(FUSB302_REG_SWITCHES1, val);
 }
 
 uint8_t fusb302_get_switch_1()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_SWITCHES1);
+    return fusb302_read_reg(FUSB302_REG_SWITCHES1);
 }
 
 void fusb302_set_measure(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_MEASURE, val);
+    fusb302_write_reg(FUSB302_REG_MEASURE, val);
 }
 
 uint8_t fusb302_get_measure()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_MEASURE);
+    return fusb302_read_reg(FUSB302_REG_MEASURE);
 }
 
 void fusb302_set_slice(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_SLICE, val);
+    fusb302_write_reg(FUSB302_REG_SLICE, val);
 }
 
 uint8_t fusb302_get_slice()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_SLICE);
+    return fusb302_read_reg(FUSB302_REG_SLICE);
 }
 
 void fusb302_set_ctrl_0(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL0, val);
+    fusb302_write_reg(FUSB302_REG_CONTROL0, val);
 }
 
 uint8_t fusb302_get_ctrl_0()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL0);
+    return fusb302_read_reg(FUSB302_REG_CONTROL0);
 }
 
 void fusb302_set_ctrl_1(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL1, val);
+    fusb302_write_reg(FUSB302_REG_CONTROL1, val);
 }
 
 uint8_t fusb302_get_ctrl_1()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL1);
+    return fusb302_read_reg(FUSB302_REG_CONTROL1);
 }
 
 void fusb302_set_ctrl_2(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL2, val);
+    fusb302_write_reg(FUSB302_REG_CONTROL2, val);
 }
 
 uint8_t fusb302_get_ctrl_2()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL2);
+    return fusb302_read_reg(FUSB302_REG_CONTROL2);
 }
 
 void fusb302_set_ctrl_3(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL3, val);
+    fusb302_write_reg(FUSB302_REG_CONTROL3, val);
 }
 
 uint8_t fusb302_get_ctrl_3()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL3);
+    return fusb302_read_reg(FUSB302_REG_CONTROL3);
 }
 
 void fusb302_set_ctrl_4(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_CONTROL4, val);
+    fusb302_write_reg(FUSB302_REG_CONTROL4, val);
 }
 
 uint8_t fusb302_get_ctrl_4()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_CONTROL4);
+    return fusb302_read_reg(FUSB302_REG_CONTROL4);
 }
 
 void fusb302_set_mask(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_MASK, val);
+    fusb302_write_reg(FUSB302_REG_MASK, val);
 }
 
 uint8_t fusb302_get_mask()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_MASK);
+    return fusb302_read_reg(FUSB302_REG_MASK);
 }
 
 void fusb302_set_power(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_POWER, val);
+    fusb302_write_reg(FUSB302_REG_POWER, val);
 }
 
 uint8_t fusb302_get_power()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_POWER);
+    return fusb302_read_reg(FUSB302_REG_POWER);
 }
 
 void fusb302_reset(bool pd_rst, bool sw_rst)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_RESET,
-                (pd_rst ? FUSB302_REG_RESET_PD_RESET : 0U) |
-                (sw_rst ? FUSB302_REG_RESET_SW_RESET : 0U));
+    fusb302_write_reg(FUSB302_REG_RESET,
+                      (pd_rst ? FUSB302_REG_RESET_PD_RESET : 0U) |
+                      (sw_rst ? FUSB302_REG_RESET_SW_RESET : 0U));
 }
 
 uint8_t fusb302_get_ocp()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_OCP);
+    return fusb302_read_reg(FUSB302_REG_OCP);
 }
 
 void fusb302_set_ocp(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_OCP, val);
+    fusb302_write_reg(FUSB302_REG_OCP, val);
 }
 
 void fusb302_set_mask_a(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_MASK_A, val);
+    fusb302_write_reg(FUSB302_REG_MASK_A, val);
 }
 
 uint8_t fusb302_get_mask_a()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_MASK_A);
+    return fusb302_read_reg(FUSB302_REG_MASK_A);
 }
 
 void fusb302_set_mask_b(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_MASK_B, val);
+    fusb302_write_reg(FUSB302_REG_MASK_B, val);
 }
 
 uint8_t fusb302_get_mask_b()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_MASK_B);
+    return fusb302_read_reg(FUSB302_REG_MASK_B);
 }
 
 uint8_t fusb302_get_status_0a()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS0A);
+    return fusb302_read_reg(FUSB302_REG_STATUS0A);
 }
 
 uint8_t fusb302_get_status_1a()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS1A);
+    return fusb302_read_reg(FUSB302_REG_STATUS1A);
 }
 
 uint8_t fusb302_get_status_0()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS0);
+    return fusb302_read_reg(FUSB302_REG_STATUS0);
 }
 
 uint8_t fusb302_get_status_1()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_STATUS1);
+    return fusb302_read_reg(FUSB302_REG_STATUS1);
 }
 
 void fusb302_clear_interrupt_a(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_INTERRUPT_A, val);
+    fusb302_write_reg(FUSB302_REG_INTERRUPT_A, val);
 }
 
 uint8_t fusb302_get_interrupt_a()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_INTERRUPT_A);
+    return fusb302_read_reg(FUSB302_REG_INTERRUPT_A);
 }
 
 void fusb302_clear_interrupt_b(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_INTERRUPT_B, val);
+    fusb302_write_reg(FUSB302_REG_INTERRUPT_B, val);
 }
 
 uint8_t fusb302_get_interrupt_b()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_INTERRUPT_B);
+    return fusb302_read_reg(FUSB302_REG_INTERRUPT_B);
 }
 
 void fusb302_clear_interrupt(uint8_t val)
 {
-    i2c_write(FUSB302_ADDR, FUSB302_REG_INTERRUPT, val);
+    fusb302_write_reg(FUSB302_REG_INTERRUPT, val);
 }
 
 uint8_t fusb302_get_interrupt()
 {
-    return i2c_read(FUSB302_ADDR, FUSB302_REG_INTERRUPT);
+    return fusb302_read_reg(FUSB302_REG_INTERRUPT);
 }
-
-void fusb302_write_fifo(uint8_t *buf, size_t len)
-{
-    i2c_write_burst(FUSB302_ADDR, FUSB302_REG_FIFOS, buf, len);
-}
-
-void fusb302_read_fifo(uint8_t *buf, size_t len)
-{
-    i2c_read_burst(FUSB302_ADDR, FUSB302_REG_FIFOS, buf, len);
-}
-
-
