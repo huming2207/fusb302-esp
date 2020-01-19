@@ -2,7 +2,9 @@
 
 #include <esp_err.h>
 #include <esp_http_server.h>
-#include "../tcpm/tcpm.h"
+#include "../tcpm/tcpm.hpp"
+
+#define TCPC_PD_HEADER_DATA_OBJ_CNT(header)   ((uint8_t)((header) >> 12U) & 7U)
 
 typedef enum {
     TCPC_RP_USB = 0,
@@ -55,8 +57,9 @@ typedef struct {
 } tcpc_drv_t;
 
 esp_err_t tcpc_tx(tcpc_drv_t *drv, uint16_t header, const uint32_t *data_obj, size_t len);
-esp_err_t tcpc_on_rx(tcpc_drv_t *drv, uint16_t *header, uint32_t *data_obj, size_t *data_obj_len);
+esp_err_t tcpc_set_rx_cb(tcpc_drv_t *drv, tcpc_rx_cb_t rx_cb);
 bool tcpc_detect_vbus(tcpc_drv_t *drv);
 esp_err_t tcpc_set_rp(tcpc_drv_t *drv, tcpc_rp_t rp);
 esp_err_t tcpc_set_cc(tcpc_drv_t *drv, tcpc_cc_pull_t pull);
 esp_err_t tcpc_get_cc(tcpc_drv_t *drv, tcpc_cc_status_t *status_cc1, tcpc_cc_status_t *status_cc2);
+

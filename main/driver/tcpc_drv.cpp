@@ -1,4 +1,4 @@
-#include "tcpc_drv.h"
+#include "tcpc_drv.hpp"
 
 esp_err_t tcpc_tx(tcpc_drv_t *drv, uint16_t header, const uint32_t *data_obj, size_t len)
 {
@@ -6,9 +6,10 @@ esp_err_t tcpc_tx(tcpc_drv_t *drv, uint16_t header, const uint32_t *data_obj, si
     return drv->tx_func(header, data_obj, len);
 }
 
-esp_err_t tcpc_on_rx(tcpc_drv_t *drv, uint16_t *header, uint32_t *data_obj, size_t *data_obj_len)
+esp_err_t tcpc_set_rx_cb(tcpc_drv_t *drv, tcpc_rx_cb_t rx_cb)
 {
     if(drv == NULL) return ESP_ERR_INVALID_ARG;
+    drv->rx_cb = rx_cb;
     return ESP_OK;
 }
 

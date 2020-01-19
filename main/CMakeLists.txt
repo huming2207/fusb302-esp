@@ -1,6 +1,6 @@
-idf_component_register(SRCS "pdmancer_main.c"
-                    "driver/tcpc_drv.c" "driver/tcpc_drv.h"
-                    "driver/drv_fusb302.c" "driver/drv_fusb302.h"
+idf_component_register(SRCS "pdmancer_main.cpp"
+                    "driver/tcpc_drv.cpp" "driver/tcpc_drv.hpp"
+                    "driver/drv_fusb302.cpp" "driver/drv_fusb302.hpp"
                     "middleware/mid_fusb302.c" "middleware/mid_fusb302.h"
-                    "tcpm/tcpm.c" "tcpm/tcpm.h"
+                    "tcpm/tcpm.cpp" "tcpm/tcpm.hpp"
                     INCLUDE_DIRS "" "driver")
