@@ -220,7 +220,7 @@ namespace fusb302_token
     } ;
 }
 
-namespace drv
+namespace device
 {
     class fusb302 : public tcpc
     {

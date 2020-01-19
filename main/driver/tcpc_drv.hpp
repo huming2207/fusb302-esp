@@ -74,8 +74,11 @@ namespace tcpc_def
     typedef std::function<esp_err_t()> rx_cb_t;
 }
 
-namespace drv
+namespace device
 {
+    /**
+     * Type-C Port Controller Interface (virtual class)
+     */
     class tcpc
     {
     public:
@@ -85,9 +88,36 @@ namespace drv
         virtual bool detect_vbus() = 0;
         virtual esp_err_t set_rp(tcpc_def::rp_mode rp) = 0;
         virtual esp_err_t set_cc(tcpc_def::cc_pull pull) = 0;
+
+        /**
+         * Get CC status
+         *
+         * @param status_cc1[out] CC1's status
+         * @param status_cc2[out] CC2's status
+         * @return
+         */
         virtual esp_err_t get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *status_cc2) = 0;
+
+        /**
+         * Set polarity of a cable
+         *
+         * @param is_flipped True for flipped (i.e. CC2 is being used)
+         * @return ESP_OK if successful
+         */
         virtual esp_err_t set_polarity(bool is_flipped) = 0;
         virtual esp_err_t set_vconn(bool enable) = 0;
+
+        /**
+         * Automatically detect and configure polarity of a cable connection
+         *
+         * This is a combination of get_cc() and set_polarity()
+         *
+         * @return
+         *      - ESP_OK if successful
+         *      - ESP_ERR_INVALID_STATE if two CC wires are being pulled or disconnected
+         *      - ESP_FAIL if CC status detection failed
+         *
+         */
         virtual esp_err_t auto_config_polarity() = 0;
     };
 }

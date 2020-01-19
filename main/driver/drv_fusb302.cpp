@@ -16,7 +16,7 @@
 
 #define TAG "fusb302_drv"
 
-using namespace drv;
+using namespace device;
 
 QueueHandle_t fusb302::intr_evt_queue = nullptr;
 
