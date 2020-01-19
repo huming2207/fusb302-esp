@@ -220,13 +220,17 @@ namespace fusb302_token
 
 namespace drv
 {
-    class fusb302
+    class fusb302 : public tcpc
     {
     public:
         fusb302(int sda, int scl, int intr, i2c_port_t port = I2C_NUM_0);
-        esp_err_t read_fifo(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt);
-        esp_err_t write_fifo(uint16_t header, const uint32_t *data_objs, size_t obj_cnt);
-        void on_pkt_received(const std::function<esp_err_t()>& func);
+        esp_err_t receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt) override;
+        esp_err_t transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt) override;
+        void on_pkt_received(const tcpc_def::rx_cb_t &func) override;
+        bool detect_vbus() override;
+        esp_err_t set_rp(tcpc_def::rp_t rp) override;
+        esp_err_t set_cc(tcpc_def::cc_pull_t pull) override;
+        esp_err_t get_cc(tcpc_def::cc_status_t *status_cc1, tcpc_def::cc_status_t *status_cc2) override;
 
     private:
         uint8_t read_reg(uint8_t reg);
@@ -277,7 +281,7 @@ namespace drv
     private:
         static xQueueHandle intr_evt_queue;
         i2c_port_t i2c_port = I2C_NUM_0;
-        std::function<esp_err_t()> rx_cb = {};
+        tcpc_def::rx_cb_t rx_cb = {};
     };
 }
 

@@ -57,7 +57,7 @@ uint8_t fusb302::read_reg(uint8_t reg)
     return result;
 }
 
-esp_err_t fusb302::write_fifo(const uint16_t header, const uint32_t *data_objs, size_t obj_cnt)
+esp_err_t fusb302::transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt)
 {
     if (data_objs == nullptr || obj_cnt < 0) return ESP_ERR_INVALID_ARG;
 
@@ -106,7 +106,7 @@ esp_err_t fusb302::write_fifo(const uint16_t header, const uint32_t *data_objs, 
  * @return
  *
  */
-esp_err_t fusb302::read_fifo(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt)
+esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt)
 {
     if (header == nullptr || data_objs == nullptr || actual_cnt == nullptr) return ESP_ERR_INVALID_ARG;
 
@@ -255,6 +255,31 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
 
     // Enable all power
     set_power(FUSB302_REG_POWER_PWR_ALL);
+}
+
+void fusb302::on_pkt_received(const tcpc_def::rx_cb_t &func)
+{
+    rx_cb = func;
+}
+
+bool fusb302::detect_vbus()
+{
+    return false;
+}
+
+esp_err_t fusb302::set_rp(tcpc_def::rp_t rp)
+{
+    return 0;
+}
+
+esp_err_t fusb302::set_cc(tcpc_def::cc_pull_t pull)
+{
+    return 0;
+}
+
+esp_err_t fusb302::get_cc(tcpc_def::cc_status_t *status_cc1, tcpc_def::cc_status_t *status_cc2)
+{
+    return 0;
 }
 
 uint8_t fusb302::get_dev_id()
@@ -459,7 +484,4 @@ uint8_t fusb302::get_interrupt()
     return read_reg(FUSB302_REG_INTERRUPT);
 }
 
-void fusb302::on_pkt_received(const std::function<esp_err_t()> &func)
-{
-    rx_cb = func;
-}
+
