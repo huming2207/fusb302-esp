@@ -59,26 +59,33 @@ static esp_err_t fusb302_write_fifo(tcpc_drv_t *drv_handle, uint16_t header, con
 {
     if (drv_handle == NULL || data_objs == NULL || obj_cnt < 0) return ESP_ERR_INVALID_ARG;
 
+    // Step 1. Flush Tx FIFO
+    fusb302_set_ctrl_0(FUSB302_REG_CONTROL0_TX_FLUSH);
+
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     ESP_ERROR_CHECK(i2c_master_start(cmd));
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(FUSB302_ADDR << 1U) | I2C_WRITE_BIT, true));
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, FUSB302_REG_FIFOS, true));
 
-    // Step 1. Send SOP tokens
+    // Step 2. Send SOP tokens
     uint8_t sop_token[4] = { FUSB302_TKN_SYNC1, FUSB302_TKN_SYNC1, FUSB302_TKN_SYNC1, FUSB302_TKN_SYNC2 };
     ESP_ERROR_CHECK(i2c_master_write(cmd, sop_token, sizeof(sop_token), true));
 
-    // Step 2. Send packet header
+    // Step 3. Send packet header
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(header & 0xffU), true));
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(header >> 8U), true));
 
-    // Step 3. Send data objects
+    // Step 4. Send data objects
     for (size_t idx = 0; idx < obj_cnt; idx ++) {
         ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] & 0xffU), true));
         ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 8U), true));
         ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 16U), true));
         ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 24U), true));
     }
+
+    // Step 5. Send CRC, End of Packet and TX_OFF tokens, with TX_ON token appended
+    uint8_t post_token[4] = { FUSB302_TKN_JAMCRC, FUSB302_TKN_EOP, FUSB302_TKN_TXOFF, FUSB302_TKN_TXON };
+    ESP_ERROR_CHECK(i2c_master_write(cmd, post_token, sizeof(post_token), true));
 
     ESP_ERROR_CHECK(i2c_master_stop(cmd));
     ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
@@ -153,6 +160,9 @@ static esp_err_t fusb302_read_fifo(tcpc_drv_t *drv_handle,
     ESP_ERROR_CHECK(i2c_master_stop(cmd));
     ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(1000)));
     i2c_cmd_link_delete(cmd);
+
+    // Step 6: Flush FIFO
+    fusb302_set_ctrl_1(FUSB302_REG_CONTROL1_RX_FLUSH);
 
     return ESP_OK;
 }
