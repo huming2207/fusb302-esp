@@ -20,9 +20,9 @@
 /* Default retry count for transmitting */
 #define PD_RETRY_COUNT		3U
 
-#define FUSB302_REG_DEVICE_ID	0x01
+#define FUSB302_REG_DEVICE_ID	0x01U
 
-#define FUSB302_REG_SWITCHES0	0x02
+#define FUSB302_REG_SWITCHES0	0x02U
 #define FUSB302_REG_SWITCHES0_CC2_PU_EN	(1U<<7U)
 #define FUSB302_REG_SWITCHES0_CC1_PU_EN	(1U<<6U)
 #define FUSB302_REG_SWITCHES0_VCONN_CC2	(1U<<5U)
@@ -32,7 +32,7 @@
 #define FUSB302_REG_SWITCHES0_CC2_PD_EN	(1U<<1U)
 #define FUSB302_REG_SWITCHES0_CC1_PD_EN	(1U<<0U)
 
-#define FUSB302_REG_SWITCHES1	0x03
+#define FUSB302_REG_SWITCHES1	0x03U
 #define FUSB302_REG_SWITCHES1_POWERROLE	(1U<<7U)
 #define FUSB302_REG_SWITCHES1_SPECREV1	(1U<<6U)
 #define FUSB302_REG_SWITCHES1_SPECREV0	(1U<<5U)
@@ -41,11 +41,11 @@
 #define FUSB302_REG_SWITCHES1_TXCC2_EN	(1U<<1U)
 #define FUSB302_REG_SWITCHES1_TXCC1_EN	(1U<<0U)
 
-#define FUSB302_REG_MEASURE	0x04
-#define FUSB302_REG_MEASURE_MDAC_MASK	0x3F
+#define FUSB302_REG_MEASURE	0x04U
+#define FUSB302_REG_MEASURE_MDAC_MASK	0x3FU
 #define FUSB302_REG_MEASURE_VBUS		(1U<<6U)
 
-#define FUSB302_REG_SLICE   0x05
+#define FUSB302_REG_SLICE   0x05U
 
 /*
  * MDAC reference voltage step size is 42 mV. Round our thresholds to reduce
@@ -54,7 +54,7 @@
  */
 #define FUSB302_REG_MEASURE_MDAC_MV(mv)	(DIV_ROUND_NEAREST((mv), 42) & 0x3f)
 
-#define FUSB302_REG_CONTROL0	0x06
+#define FUSB302_REG_CONTROL0	0x06U
 #define FUSB302_REG_CONTROL0_TX_FLUSH	(1U<<6U)
 #define FUSB302_REG_CONTROL0_INT_MASK	(1U<<5U)
 #define FUSB302_REG_CONTROL0_HOST_CUR_MASK (3U<<2U)
@@ -63,7 +63,7 @@
 #define FUSB302_REG_CONTROL0_HOST_CUR_USB  (1U<<2U)
 #define FUSB302_REG_CONTROL0_TX_START	(1U<<0U)
 
-#define FUSB302_REG_CONTROL1	0x07
+#define FUSB302_REG_CONTROL1	0x07U
 #define FUSB302_REG_CONTROL1_ENSOP2DB	(1U<<6U)
 #define FUSB302_REG_CONTROL1_ENSOP1DB	(1U<<5U)
 #define FUSB302_REG_CONTROL1_BIST_MODE2	(1U<<4U)
@@ -71,7 +71,7 @@
 #define FUSB302_REG_CONTROL1_ENSOP2	(1U<<1U)
 #define FUSB302_REG_CONTROL1_ENSOP1	(1U<<0U)
 
-#define FUSB302_REG_CONTROL2	0x08
+#define FUSB302_REG_CONTROL2	0x08U
 /* two-bit field, valid values below */
 #define FUSB302_REG_CONTROL2_MODE_MASK	(0x3U<<FUSB302_REG_CONTROL2_MODE_POS)
 #define FUSB302_REG_CONTROL2_MODE_DFP	(0x3U)
@@ -80,7 +80,7 @@
 #define FUSB302_REG_CONTROL2_MODE_POS	(1U)
 #define FUSB302_REG_CONTROL2_TOGGLE	(1U<<0U)
 
-#define FUSB302_REG_CONTROL3	0x09
+#define FUSB302_REG_CONTROL3	0x09U
 #define FUSB302_REG_CONTROL3_SEND_HARDRESET	(1U<<6U)
 #define FUSB302_REG_CONTROL3_BIST_TMODE		(1U<<5U) /* 302B Only */
 #define FUSB302_REG_CONTROL3_AUTO_HARDRESET	(1U<<4U)
@@ -91,7 +91,7 @@
 #define FUSB302_REG_CONTROL3_N_RETRIES_SIZE	(2U)
 #define FUSB302_REG_CONTROL3_AUTO_RETRY		(1U<<0U)
 
-#define FUSB302_REG_MASK		0x0A
+#define FUSB302_REG_MASK		0x0AU
 #define FUSB302_REG_MASK_VBUSOK		(1U<<7U)
 #define FUSB302_REG_MASK_ACTIVITY		(1U<<6U)
 #define FUSB302_REG_MASK_COMP_CHNG		(1U<<5U)
@@ -101,20 +101,20 @@
 #define FUSB302_REG_MASK_COLLISION		(1U<<1U)
 #define FUSB302_REG_MASK_BC_LVL		(1U<<0U)
 
-#define FUSB302_REG_POWER		0x0B
+#define FUSB302_REG_POWER		0x0BU
 #define FUSB302_REG_POWER_PWR		(1U<<0U)	/* four-bit field */
 #define FUSB302_REG_POWER_PWR_LOW		0x1 /* Bandgap + Wake circuitry */
 #define FUSB302_REG_POWER_PWR_MEDIUM	0x3 /* LOW + Receiver + Current refs */
 #define FUSB302_REG_POWER_PWR_HIGH		0x7 /* MEDIUM + Measure block */
 #define FUSB302_REG_POWER_PWR_ALL		0xF /* HIGH + Internal Oscillator */
 
-#define FUSB302_REG_RESET		0x0C
+#define FUSB302_REG_RESET		0x0CU
 #define FUSB302_REG_RESET_PD_RESET		(1U<<1U)
 #define FUSB302_REG_RESET_SW_RESET		(1U<<0U)
 
-#define FUSB302_REG_OCP         0x0D
+#define FUSB302_REG_OCP         0x0DU
 
-#define FUSB302_REG_MASK_A		0x0E
+#define FUSB302_REG_MASK_A		0x0EU
 #define FUSB302_REG_MASK_A_OCP_TEMP		(1U<<7U)
 #define FUSB302_REG_MASK_A_TOGDONE		(1U<<6U)
 #define FUSB302_REG_MASK_A_SOFTFAIL		(1U<<5U)
@@ -124,19 +124,19 @@
 #define FUSB302_REG_MASK_A_SOFTRESET	(1U<<1U)
 #define FUSB302_REG_MASK_A_HARDRESET	(1U<<0U)
 
-#define FUSB302_REG_MASK_B		0x0F
+#define FUSB302_REG_MASK_B		0x0FU
 #define FUSB302_REG_MASK_B_GCRCSENT		(1U<<0U)
 
-#define FUSB302_REG_STATUS0A	0x3C
+#define FUSB302_REG_STATUS0A	0x3CU
 #define FUSB302_REG_STATUS0A_SOFTFAIL	(1U<<5U)
 #define FUSB302_REG_STATUS0A_RETRYFAIL	(1U<<4U)
 #define FUSB302_REG_STATUS0A_POWER		(1U<<2U) /* two-bit field */
 #define FUSB302_REG_STATUS0A_RX_SOFT_RESET	(1U<<1U)
 #define FUSB302_REG_STATUS0A_RX_HARD_RESEt	(1U<<0U)
 
-#define FUSB302_REG_CONTROL4    0x10
+#define FUSB302_REG_CONTROL4    0x10U
 
-#define FUSB302_REG_STATUS1A	0x3D
+#define FUSB302_REG_STATUS1A	0x3DU
 /* three-bit field, valid values below */
 #define FUSB302_REG_STATUS1A_TOGSS		(1U<<3U)
 #define FUSB302_REG_STATUS1A_TOGSS_RUNNING		0x0U
@@ -152,7 +152,7 @@
 #define FUSB302_REG_STATUS1A_RXSOP1DB	(1U<<1U)
 #define FUSB302_REG_STATUS1A_RXSOP		(1U<<0U)
 
-#define FUSB302_REG_INTERRUPT_A	0x3E
+#define FUSB302_REG_INTERRUPT_A	0x3EU
 #define FUSB302_REG_INTERRUPT_A_OCP_TEMP	(1U<<7U)
 #define FUSB302_REG_INTERRUPT_A_TOGDONE	(1U<<6U)
 #define FUSB302_REG_INTERRUPT_A_SOFTFAIL	(1U<<5U)
@@ -162,10 +162,10 @@
 #define FUSB302_REG_INTERRUPT_A_SOFTRESET	(1U<<1U)
 #define FUSB302_REG_INTERRUPT_A_HARDRESET	(1U<<0U)
 
-#define FUSB302_REG_INTERRUPT_B	0x3F
+#define FUSB302_REG_INTERRUPT_B	0x3FU
 #define FUSB302_REG_INTERRUPT_B_GCRCSENT		(1U<<0U)
 
-#define FUSB302_REG_STATUS0	0x40
+#define FUSB302_REG_STATUS0	0x40U
 #define FUSB302_REG_STATUS0_VBUSOK		(1U<<7U)
 #define FUSB302_REG_STATUS0_ACTIVITY	(1U<<6U)
 #define FUSB302_REG_STATUS0_COMP		(1U<<5U)
@@ -175,7 +175,7 @@
 #define FUSB302_REG_STATUS0_BC_LVL1	(1U<<1U) /* two-bit field */
 #define FUSB302_REG_STATUS0_BC_LVL0	(1U<<0U) /* two-bit field */
 
-#define FUSB302_REG_STATUS1	0x41
+#define FUSB302_REG_STATUS1	0x41U
 #define FUSB302_REG_STATUS1_RXSOP2		(1U<<7U)
 #define FUSB302_REG_STATUS1_RXSOP1		(1U<<6U)
 #define FUSB302_REG_STATUS1_RX_EMPTY	(1U<<5U)
@@ -183,7 +183,7 @@
 #define FUSB302_REG_STATUS1_TX_EMPTY	(1U<<3U)
 #define FUSB302_REG_STATUS1_TX_FULL	(1U<<2U)
 
-#define FUSB302_REG_INTERRUPT	0x42
+#define FUSB302_REG_INTERRUPT	0x42U
 #define FUSB302_REG_INTERRUPT_VBUSOK	(1U<<7U)
 #define FUSB302_REG_INTERRUPT_ACTIVITY	(1U<<6U)
 #define FUSB302_REG_INTERRUPT_COMP_CHNG	(1U<<5U)
@@ -193,12 +193,12 @@
 #define FUSB302_REG_INTERRUPT_COLLISION	(1U<<1U)
 #define FUSB302_REG_INTERRUPT_BC_LVL	(1U<<0U)
 
-#define FUSB302_REG_FIFOS		0x43
+#define FUSB302_REG_FIFOS		0x43U
 
 namespace fusb302_token
 {
     /* Tokens defined for the FUSB302 TX FIFO */
-    typedef enum  {
+    enum tx_token {
         TXON = 0xA1,
         SYNC1 = 0x12,
         SYNC2 = 0x13,
@@ -209,15 +209,15 @@ namespace fusb302_token
         JAMCRC = 0xFF,
         EOP = 0x14,
         TXOFF = 0xFE,
-    } tx_token_t;
+    } ;
 
-    typedef enum {
+    enum rx_token {
         SOP     = 0b11100000,
         SOP1    = 0b11000000,
         SOP2    = 0b10100000,
         SOP1DB  = 0b10000000,
         SOP2DB  = 0b01100000
-    } fusb302_rx_token_t;
+    } ;
 }
 
 namespace drv
@@ -230,9 +230,9 @@ namespace drv
         esp_err_t transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt) override;
         void on_pkt_received(const tcpc_def::rx_cb_t &func) override;
         bool detect_vbus() override;
-        esp_err_t set_rp(tcpc_def::rp_t rp) override;
-        esp_err_t set_cc(tcpc_def::cc_pull_t pull) override;
-        esp_err_t get_cc(tcpc_def::cc_status_t *status_cc1, tcpc_def::cc_status_t *status_cc2) override;
+        esp_err_t set_rp(tcpc_def::rp_mode rp) override;
+        esp_err_t set_cc(tcpc_def::cc_pull pull) override;
+        esp_err_t get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *status_cc2) override;
 
     private:
         uint8_t read_reg(uint8_t reg);
@@ -279,6 +279,9 @@ namespace drv
         uint8_t get_interrupt();
         static void intr_task(void *arg);
         static void gpio_isr_handler(void* arg);
+
+    private:
+
 
     private:
         static QueueHandle_t intr_evt_queue;

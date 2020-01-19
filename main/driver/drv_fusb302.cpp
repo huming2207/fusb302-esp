@@ -267,17 +267,17 @@ bool fusb302::detect_vbus()
     return false;
 }
 
-esp_err_t fusb302::set_rp(tcpc_def::rp_t rp)
+esp_err_t fusb302::set_rp(tcpc_def::rp_mode rp)
 {
     return 0;
 }
 
-esp_err_t fusb302::set_cc(tcpc_def::cc_pull_t pull)
+esp_err_t fusb302::set_cc(tcpc_def::cc_pull pull)
 {
     return 0;
 }
 
-esp_err_t fusb302::get_cc(tcpc_def::cc_status_t *status_cc1, tcpc_def::cc_status_t *status_cc2)
+esp_err_t fusb302::get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *status_cc2)
 {
     return 0;
 }
