@@ -1,7 +1,3 @@
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
-#include <freertos/task.h>
-
 #include <hal/i2c_types.h>
 #include <hal/gpio_types.h>
 #include <driver/i2c.h>
@@ -13,17 +9,18 @@
 #define I2C_READ_BIT 1U
 
 #define FUSB302_ADDR 0x22U
+#define FUSB302_INTR_EVENT_BIT  (1U << 0U)
 
 #define TAG "fusb302_drv"
 
 using namespace device;
 
-QueueHandle_t fusb302::intr_evt_queue = nullptr;
+EventGroupHandle_t fusb302::intr_evt_group = nullptr;
 
 void IRAM_ATTR fusb302::gpio_isr_handler(void* arg)
 {
-    uint32_t gpio_num = *(uint32_t *)arg;
-    xQueueSendFromISR(intr_evt_queue, &gpio_num, nullptr);
+    auto taskStatus = pdFALSE;
+    xEventGroupSetBitsFromISR(intr_evt_group, FUSB302_INTR_EVENT_BIT, &taskStatus);
 }
 
 void fusb302::write_reg(uint8_t reg, uint8_t param)
@@ -70,7 +67,7 @@ esp_err_t fusb302::transmit_pkt(uint16_t header, const uint32_t *data_objs, size
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, FUSB302_REG_FIFOS, true));
 
     // Step 2. Send SOP tokens
-    uint8_t sop_token[4] = { fusb302_token::SYNC1, fusb302_token::SYNC1, fusb302_token::SYNC1, fusb302_token::SYNC2 };
+    uint8_t sop_token[4] = {fusb302_token::SYNC1, fusb302_token::SYNC1, fusb302_token::SYNC1, fusb302_token::SYNC2 };
     ESP_ERROR_CHECK(i2c_master_write(cmd, sop_token, sizeof(sop_token), true));
 
     // Step 3. Send packet header
@@ -86,7 +83,7 @@ esp_err_t fusb302::transmit_pkt(uint16_t header, const uint32_t *data_objs, size
     }
 
     // Step 5. Send CRC, End of Packet and TX_OFF tokens, with TX_ON token appended
-    uint8_t post_token[4] = { fusb302_token::JAMCRC, fusb302_token::EOP, fusb302_token::TXOFF, fusb302_token::TXON };
+    uint8_t post_token[4] = {fusb302_token::JAMCRC, fusb302_token::EOP, fusb302_token::TXOFF, fusb302_token::TXON };
     ESP_ERROR_CHECK(i2c_master_write(cmd, post_token, sizeof(post_token), true));
 
     ESP_ERROR_CHECK(i2c_master_stop(cmd));
@@ -171,11 +168,16 @@ esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max
 
 void fusb302::intr_task(void* arg)
 {
-    gpio_num_t io_num;
     auto *ctx = static_cast<fusb302 *>(arg);
     for(;;) {
-        if(xQueueReceive(intr_evt_queue, &io_num, portMAX_DELAY)) {
+        // Clear on exit, wait only one bit
+        if (xEventGroupWaitBits(intr_evt_group, FUSB302_INTR_EVENT_BIT, pdTRUE, pdFALSE, portMAX_DELAY)) {
+            uint8_t intr_reg = ctx->get_interrupt();
+            if ((intr_reg & FUSB302_REG_INTERRUPT_CRC_CHK) > 0) {
+                ctx->rx_cb();
+            } else if ((intr_reg & FUSB302_REG_INTERRUPT_ALERT) > 0) {
 
+            }
         }
     }
 }
@@ -212,10 +214,10 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
     // Reset FUSB302 and PD
     reset(true, true);
 
-    // Create GPIO Interrupt queue
-    intr_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    if (intr_evt_queue == nullptr) {
-        ESP_LOGE(TAG, "Cannot create interrupt queue");
+    // Create GPIO Interrupt event group
+    intr_evt_group = xEventGroupCreate();
+    if (intr_evt_group == nullptr) {
+        ESP_LOGE(TAG, "Cannot create interrupt event group");
     }
 
     // Start GPIO Interrupt task
@@ -257,7 +259,7 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
     set_power(FUSB302_REG_POWER_PWR_ALL);
 }
 
-void fusb302::on_pkt_received(const tcpc_def::rx_cb_t &func)
+void fusb302::on_pkt_received(const tcpc_def::rx_ready_cb &func)
 {
     rx_cb = func;
 }

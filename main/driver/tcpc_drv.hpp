@@ -3,6 +3,7 @@
 #include <esp_err.h>
 #include <esp_http_server.h>
 #include <functional>
+#include <hal/i2c_types.h>
 #include "../tcpm/tcpm.hpp"
 
 #define TCPC_PD_HEADER_DATA_OBJ_CNT(header)   ((uint8_t)((header) >> 12U) & 7U)
@@ -71,7 +72,7 @@ namespace tcpc_def
         TCPC_CC_POLARITY_CC2 = 1
     };
 
-    typedef std::function<esp_err_t()> rx_cb_t;
+    typedef std::function<esp_err_t()> rx_ready_cb;
 }
 
 namespace device
@@ -84,7 +85,7 @@ namespace device
     public:
         virtual esp_err_t transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt) = 0;
         virtual esp_err_t receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt) = 0;
-        virtual void on_pkt_received(const tcpc_def::rx_cb_t &rx_cb) = 0;
+        virtual void on_pkt_received(const tcpc_def::rx_ready_cb &rx_cb) = 0;
         virtual bool detect_vbus() = 0;
         virtual esp_err_t set_rp(tcpc_def::rp_mode rp) = 0;
         virtual esp_err_t set_cc(tcpc_def::cc_pull pull) = 0;
@@ -119,6 +120,10 @@ namespace device
          *
          */
         virtual esp_err_t auto_config_polarity() = 0;
+
+    protected:
+        i2c_port_t i2c_port = 0;
+        tcpc_def::rx_ready_cb rx_cb = {};
     };
 }
 

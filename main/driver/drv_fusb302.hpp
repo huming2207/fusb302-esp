@@ -8,7 +8,8 @@
  */
 
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+#include <freertos/event_groups.h>
+
 #include <esp_err.h>
 #include <functional>
 #include <driver/i2c.h>
@@ -228,7 +229,7 @@ namespace device
         fusb302(int sda, int scl, int intr, i2c_port_t port = 0);
         esp_err_t receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt) override;
         esp_err_t transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt) override;
-        void on_pkt_received(const tcpc_def::rx_cb_t &func) override;
+        void on_pkt_received(const tcpc_def::rx_ready_cb &func) override;
         bool detect_vbus() override;
         esp_err_t set_rp(tcpc_def::rp_mode rp) override;
         esp_err_t set_cc(tcpc_def::cc_pull pull) override;
@@ -300,9 +301,7 @@ namespace device
         tcpc_def::cc_status convert_bc_lvl(uint8_t bc_lvl);
 
     private:
-        static QueueHandle_t intr_evt_queue;
-        i2c_port_t i2c_port = 0;
-        tcpc_def::rx_cb_t rx_cb = {};
+        static EventGroupHandle_t intr_evt_group;
         bool is_pull_up = false; // False to be in SINK mode
         bool vconn_enabled = false;
     };
