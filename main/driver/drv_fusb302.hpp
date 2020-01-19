@@ -233,6 +233,9 @@ namespace drv
         esp_err_t set_rp(tcpc_def::rp_mode rp) override;
         esp_err_t set_cc(tcpc_def::cc_pull pull) override;
         esp_err_t get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *status_cc2) override;
+        esp_err_t set_polarity(bool is_flipped);
+        esp_err_t set_vconn(bool enable);
+        esp_err_t auto_config_polarity();
 
     private:
         uint8_t read_reg(uint8_t reg);
@@ -301,6 +304,7 @@ namespace drv
         i2c_port_t i2c_port = 0;
         tcpc_def::rx_cb_t rx_cb = {};
         bool is_pull_up = false; // False to be in SINK mode
+        bool vconn_enabled = false;
     };
 }
 

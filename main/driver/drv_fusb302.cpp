@@ -287,6 +287,65 @@ esp_err_t fusb302::get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *
     return ESP_OK;
 }
 
+esp_err_t fusb302::set_polarity(bool is_flipped)
+{
+    // Step 1: Configure Switch0
+    uint8_t sw0_reg = get_switch_0();
+
+    // Step 1.1: Re-configure VCONN
+    sw0_reg &= ~FUSB302_REG_SWITCHES0_VCONN_CC1;
+    sw0_reg &= ~FUSB302_REG_SWITCHES0_VCONN_CC2;
+    if (vconn_enabled) {
+        sw0_reg |= is_flipped ? FUSB302_REG_SWITCHES0_VCONN_CC2 : FUSB302_REG_SWITCHES0_VCONN_CC1;
+    }
+
+    // Step 1.2: Re-configure MEAS
+    sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC1;
+    sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC2;
+    sw0_reg |= is_flipped ? FUSB302_REG_SWITCHES0_MEAS_CC2 : FUSB302_REG_SWITCHES0_MEAS_CC1;
+
+    // Step 1.3: Write back to Switch0
+    set_switch_0(sw0_reg);
+
+    // Step 2: Configure Switch1
+    uint8_t sw1_reg = get_switch_1();
+    sw1_reg &= ~FUSB302_REG_SWITCHES1_TXCC1_EN;
+    sw1_reg &= ~FUSB302_REG_SWITCHES1_TXCC2_EN;
+    sw1_reg |= is_flipped ? FUSB302_REG_SWITCHES1_TXCC2_EN : FUSB302_REG_SWITCHES1_TXCC1_EN;
+
+    // Step 2.1: Write back to Switch1
+    set_switch_1(sw1_reg);
+
+    return ESP_OK;
+}
+
+
+esp_err_t fusb302::auto_config_polarity()
+{
+    tcpc_def::cc_status status_cc1, status_cc2;
+    auto ret = get_cc(&status_cc1, &status_cc2);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get CC status");
+        return ESP_FAIL;
+    }
+
+    if (status_cc1 == status_cc2) {
+        ESP_LOGE(TAG, "Both CC lines are active or disconnected!");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    bool is_flipped = status_cc1 < status_cc2;
+    ESP_LOGI(TAG, "Cable flipped: %s", is_flipped ? "Yes" : "No");
+    return set_polarity(is_flipped);
+}
+
+
+
+esp_err_t fusb302::set_vconn(bool enable)
+{
+    return 0;
+}
+
 uint8_t fusb302::get_dev_id()
 {
     return read_reg(FUSB302_REG_DEVICE_ID);
@@ -558,5 +617,4 @@ tcpc_def::cc_status fusb302::convert_bc_lvl(uint8_t bc_lvl)
 
     return ret;
 }
-
 
