@@ -246,8 +246,22 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
                                 FUSB302_REG_SWITCHES0_MEAS_CC1);
 
     // Mask interrupts
-    set_mask(0xEF); // All except CRC_CHK
-    set_mask_a(0xFF);
+    // Enable CRC_CHK, BC_LVL, ALERT and COLLISION
+    uint8_t mask_bits = 0xff;
+    mask_bits &= ~(FUSB302_REG_MASK_CRC_CHK |       // 0 (Un-mask) to enable, 1 to disable
+                    FUSB302_REG_MASK_BC_LVL |
+                    FUSB302_REG_MASK_ALERT  |
+                    FUSB302_REG_MASK_COLLISION);
+    set_mask(mask_bits);
+
+    // Enable HARDRESET, TX_SUCCESS and RETRY_FAIL
+    mask_bits = 0xff;
+    mask_bits &= ~(FUSB302_REG_MASK_A_HARDRESET   |
+                    FUSB302_REG_MASK_A_TX_SUCCESS |
+                    FUSB302_REG_MASK_A_RETRYFAIL);
+    set_mask_a(mask_bits);
+
+    // Disable GCRCSENT
     set_mask_b(FUSB302_REG_MASK_B_GCRCSENT);
 
     // Switches1: CC1 Tx Enable, PD 2.0, Auto CRC Enable
