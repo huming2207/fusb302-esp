@@ -279,7 +279,12 @@ esp_err_t fusb302::set_cc(tcpc_def::cc_pull pull)
 
 esp_err_t fusb302::get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *status_cc2)
 {
-    return 0;
+    if(status_cc1 == nullptr || status_cc2 == nullptr) return ESP_ERR_INVALID_ARG;
+
+    // TODO: implement source mode
+    if (is_pull_up) return ESP_ERR_NOT_SUPPORTED;
+    detect_cc_pin_sink(status_cc1, status_cc2);
+    return ESP_OK;
 }
 
 uint8_t fusb302::get_dev_id()
@@ -482,6 +487,76 @@ void fusb302::clear_interrupt(uint8_t val)
 uint8_t fusb302::get_interrupt()
 {
     return read_reg(FUSB302_REG_INTERRUPT);
+}
+
+void fusb302::detect_cc_pin_sink(tcpc_def::cc_status *cc1, tcpc_def::cc_status *cc2)
+{
+    // Step 1. Read Switch0 register
+    uint8_t sw0_reg = get_switch_0();
+
+    // Step 2. Backup original state
+    uint8_t meas_cc1_orig = ((sw0_reg & FUSB302_REG_SWITCHES0_MEAS_CC1) == 0) ? 0 : 1;
+    uint8_t meas_cc2_orig = ((sw0_reg & FUSB302_REG_SWITCHES0_MEAS_CC2) == 0) ? 0 : 1;
+
+    // Step 3. Disable CC2 and enable CC1 measurement
+    sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC2;
+    sw0_reg |= FUSB302_REG_SWITCHES0_MEAS_CC1;
+    set_switch_1(sw0_reg);
+    vTaskDelay(pdMS_TO_TICKS(1));
+
+    // Step 4. Get CC1 measurement result
+    uint8_t bc_lvl_cc1 = get_status_0();
+    bc_lvl_cc1 &= (FUSB302_REG_STATUS0_BC_LVL0 | FUSB302_REG_STATUS0_BC_LVL1);
+
+    // Step 5. Disable CC1 and enable CC2 measurement
+    sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC1;
+    sw0_reg |= FUSB302_REG_SWITCHES0_MEAS_CC2;
+    set_switch_1(sw0_reg);
+    vTaskDelay(pdMS_TO_TICKS(1));
+
+    // Step 6. Get CC1 measurement result
+    uint8_t bc_lvl_cc2 = get_status_0();
+    bc_lvl_cc2 &= (FUSB302_REG_STATUS0_BC_LVL0 | FUSB302_REG_STATUS0_BC_LVL1);
+
+    // Step 7. Convert detection output
+    *cc1 = convert_bc_lvl(bc_lvl_cc1);
+    *cc2 = convert_bc_lvl(bc_lvl_cc2);
+
+    // Step 8. Restore Switch0 register
+    sw0_reg = get_switch_0();
+    if (meas_cc1_orig > 0) {
+        sw0_reg |= FUSB302_REG_SWITCHES0_MEAS_CC1;
+    } else {
+        sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC1;
+    }
+
+    if (meas_cc2_orig > 0) {
+        sw0_reg |= FUSB302_REG_SWITCHES0_MEAS_CC2;
+    } else {
+        sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC2;
+    }
+    set_switch_0(sw0_reg);
+}
+
+tcpc_def::cc_status fusb302::convert_bc_lvl(uint8_t bc_lvl)
+{
+    auto ret = tcpc_def::TCPC_VOLT_OPEN;
+
+    if (is_pull_up) {
+        if (bc_lvl == 0x00)
+            ret = tcpc_def::TCPC_VOLT_RA;
+        else if (bc_lvl < 0x3)
+            ret = tcpc_def::TCPC_VOLT_RD;
+    } else {
+        if (bc_lvl == 0x1)
+            ret = tcpc_def::TCPC_VOLT_SNK_DEF;
+        else if (bc_lvl == 0x2)
+            ret = tcpc_def::TCPC_VOLT_SNK_1_5;
+        else if (bc_lvl == 0x3)
+            ret = tcpc_def::TCPC_VOLT_SNK_3_0;
+    }
+
+    return ret;
 }
 
 

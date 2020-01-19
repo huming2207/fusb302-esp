@@ -280,13 +280,27 @@ namespace drv
         static void intr_task(void *arg);
         static void gpio_isr_handler(void* arg);
 
-    private:
+        /**
+         * Detect CC Pull status while in SINK mode
+         *
+         * @param cc1[out] CC1's status
+         * @param cc2[out] CC2's status
+         */
+        void detect_cc_pin_sink(tcpc_def::cc_status *cc1, tcpc_def::cc_status *cc2);
 
+        /**
+         * Convert BC_LVL bits (from STATUS_0) to CC status
+         *
+         * @param bc_lvl[in] BC_LVL bits
+         * @return CC status enum
+         */
+        tcpc_def::cc_status convert_bc_lvl(uint8_t bc_lvl);
 
     private:
         static QueueHandle_t intr_evt_queue;
         i2c_port_t i2c_port = 0;
         tcpc_def::rx_cb_t rx_cb = {};
+        bool is_pull_up = false; // False to be in SINK mode
     };
 }
 
