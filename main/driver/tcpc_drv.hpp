@@ -86,6 +86,9 @@ namespace drv
         virtual esp_err_t set_rp(tcpc_def::rp_mode rp) = 0;
         virtual esp_err_t set_cc(tcpc_def::cc_pull pull) = 0;
         virtual esp_err_t get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *status_cc2) = 0;
+        virtual esp_err_t set_polarity(bool is_flipped) = 0;
+        virtual esp_err_t set_vconn(bool enable) = 0;
+        virtual esp_err_t auto_config_polarity() = 0;
     };
 }
 
