@@ -501,7 +501,7 @@ void fusb302::detect_cc_pin_sink(tcpc_def::cc_status *cc1, tcpc_def::cc_status *
     // Step 3. Disable CC2 and enable CC1 measurement
     sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC2;
     sw0_reg |= FUSB302_REG_SWITCHES0_MEAS_CC1;
-    set_switch_1(sw0_reg);
+    set_switch_0(sw0_reg);
     vTaskDelay(pdMS_TO_TICKS(1));
 
     // Step 4. Get CC1 measurement result
@@ -511,7 +511,7 @@ void fusb302::detect_cc_pin_sink(tcpc_def::cc_status *cc1, tcpc_def::cc_status *
     // Step 5. Disable CC1 and enable CC2 measurement
     sw0_reg &= ~FUSB302_REG_SWITCHES0_MEAS_CC1;
     sw0_reg |= FUSB302_REG_SWITCHES0_MEAS_CC2;
-    set_switch_1(sw0_reg);
+    set_switch_0(sw0_reg);
     vTaskDelay(pdMS_TO_TICKS(1));
 
     // Step 6. Get CC1 measurement result
