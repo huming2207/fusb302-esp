@@ -7,9 +7,11 @@
  * Author: Gabe Noblesmith
  */
 
-/* Chip Device ID - 302A or 302B */
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <esp_err.h>
 #include <functional>
+#include <driver/i2c.h>
 #include "tcpc_drv.hpp"
 
 #define FUSB302_DEVID_302A 0x08
@@ -223,7 +225,7 @@ namespace drv
     class fusb302 : public tcpc
     {
     public:
-        fusb302(int sda, int scl, int intr, i2c_port_t port = I2C_NUM_0);
+        fusb302(int sda, int scl, int intr, i2c_port_t port = 0);
         esp_err_t receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt) override;
         esp_err_t transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt) override;
         void on_pkt_received(const tcpc_def::rx_cb_t &func) override;
@@ -279,8 +281,8 @@ namespace drv
         static void gpio_isr_handler(void* arg);
 
     private:
-        static xQueueHandle intr_evt_queue;
-        i2c_port_t i2c_port = I2C_NUM_0;
+        static QueueHandle_t intr_evt_queue;
+        i2c_port_t i2c_port = 0;
         tcpc_def::rx_cb_t rx_cb = {};
     };
 }

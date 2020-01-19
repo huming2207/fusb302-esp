@@ -18,7 +18,7 @@
 
 using namespace drv;
 
-xQueueHandle fusb302::intr_evt_queue = nullptr;
+QueueHandle_t fusb302::intr_evt_queue = nullptr;
 
 void IRAM_ATTR fusb302::gpio_isr_handler(void* arg)
 {
