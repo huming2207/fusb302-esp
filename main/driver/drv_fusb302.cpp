@@ -122,12 +122,15 @@ esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max
     uint8_t token_byte = 0;
     ESP_ERROR_CHECK(i2c_master_read_byte(cmd, &token_byte, I2C_MASTER_ACK));
     ESP_ERROR_CHECK(i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(1000)));
+    i2c_cmd_link_delete(cmd);
 
     // Step 2. Read header, 2 bytes
+    cmd = i2c_cmd_link_create();
     uint8_t header_bytes[2] = { 0 };
     ESP_ERROR_CHECK(i2c_master_read(cmd, header_bytes, 2, I2C_MASTER_ACK));
     ESP_ERROR_CHECK(i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(1000)));
     *header = (uint16_t)(header_bytes[1] << 8U) | header_bytes[0];
+    i2c_cmd_link_delete(cmd);
 
     // Step 3. Calculate packet length
     uint8_t data_obj_cnt = TCPC_PD_HEADER_DATA_OBJ_CNT(*header);
@@ -141,8 +144,10 @@ esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max
         }
 
         uint8_t data_obj_bytes[28] = { 0 }; // Maximum data objects is 7, so 7 * 4 = 28 bytes
+        cmd = i2c_cmd_link_create();
         ESP_ERROR_CHECK(i2c_master_read(cmd, data_obj_bytes, sizeof(data_obj_bytes), I2C_MASTER_ACK));
         ESP_ERROR_CHECK(i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(1000)));
+        i2c_cmd_link_delete(cmd);
 
         // Copy to output buffer
         for (size_t idx = 0; idx < data_obj_cnt * 4; idx += 4) {
@@ -154,6 +159,7 @@ esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max
 
     // Step 5. Read CRC-32
     uint8_t checksum_bytes[4] = { 0 };
+    cmd = i2c_cmd_link_create();
     ESP_ERROR_CHECK(i2c_master_read(cmd, checksum_bytes, sizeof(checksum_bytes), I2C_MASTER_LAST_NACK));
 
     ESP_ERROR_CHECK(i2c_master_stop(cmd));
