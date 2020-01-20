@@ -311,10 +311,6 @@ namespace device
         uint8_t interrupt_reg = 0;
         uint8_t interrupt_a_reg = 0;
         uint8_t interrupt_b_reg = 0;
-
-        i2c_port_t i2c_port = 0;
-        tcpc_def::rx_ready_cb rx_cb = {};
-        tcpc_def::cc_status_change_cb cc_change_cb = {};
     };
 }
 

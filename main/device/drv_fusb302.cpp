@@ -275,7 +275,7 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
     // Switches1: CC1 Tx Enable, PD 2.0, Auto GoodCRC Enable
     set_switch_1(FUSB302_REG_SWITCHES1_TXCC1_EN |
                             FUSB302_REG_SWITCHES1_AUTO_GCRC |
-                            FUSB302_REG_SWITCHES1_SPECREV1);
+                            FUSB302_REG_SWITCHES1_SPECREV0);
 
     // Enable all power
     set_power(FUSB302_REG_POWER_PWR_ALL);

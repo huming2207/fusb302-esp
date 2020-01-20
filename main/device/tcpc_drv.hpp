@@ -4,7 +4,6 @@
 #include <esp_http_server.h>
 #include <functional>
 #include <hal/i2c_types.h>
-#include "../tcpm/tcpm.hpp"
 
 #define TCPC_PD_HEADER_DATA_OBJ_CNT(header)   ((uint8_t)((header) >> 12U) & 7U)
 
@@ -72,7 +71,8 @@ namespace tcpc_def
         TCPC_CC_POLARITY_CC2 = 1
     };
 
-    typedef std::function<esp_err_t()> rx_ready_cb;
+    typedef std::function<int()> rx_ready_cb;
+    typedef std::function<int()> cc_status_change_cb;
 }
 
 namespace device
@@ -124,6 +124,7 @@ namespace device
     protected:
         i2c_port_t i2c_port = 0;
         tcpc_def::rx_ready_cb rx_cb = {};
+        tcpc_def::cc_status_change_cb cc_change_cb = {};
     };
 }
 
