@@ -10,4 +10,5 @@ extern "C" void app_main(void)
 {
     auto fusb302 = device::fusb302(21, 22, 4);
     fusb302.auto_config_polarity();
+    vTaskDelay(portMAX_DELAY);
 }
