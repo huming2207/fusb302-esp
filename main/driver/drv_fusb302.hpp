@@ -281,8 +281,11 @@ namespace device
         uint8_t get_interrupt_b();
         void clear_interrupt(uint8_t val);
         uint8_t get_interrupt();
+
         static void intr_task(void *arg);
         static void gpio_isr_handler(void* arg);
+
+        void clear_irq();
 
         /**
          * Detect CC Pull status while in SINK mode
@@ -304,6 +307,14 @@ namespace device
         static EventGroupHandle_t intr_evt_group;
         bool is_pull_up = false; // False to be in SINK mode
         bool vconn_enabled = false;
+
+        uint8_t interrupt_reg = 0;
+        uint8_t interrupt_a_reg = 0;
+        uint8_t interrupt_b_reg = 0;
+
+        i2c_port_t i2c_port = 0;
+        tcpc_def::rx_ready_cb rx_cb = {};
+        tcpc_def::cc_status_change_cb cc_change_cb = {};
     };
 }
 

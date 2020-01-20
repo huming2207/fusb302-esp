@@ -9,7 +9,9 @@
 #define I2C_READ_BIT 1U
 
 #define FUSB302_ADDR 0x22U
-#define FUSB302_INTR_EVENT_BIT  (1U << 0U)
+#define FUSB302_INTR_GENERAL_BIT  (1U << 0U)
+#define FUSB302_INTR_TX_DONE_BIT  (1U << 1U)
+#define FUSB302_INTR_TX_FAIL_BIT  (1U << 2U)
 
 #define TAG "fusb302_drv"
 
@@ -19,8 +21,8 @@ EventGroupHandle_t fusb302::intr_evt_group = nullptr;
 
 void IRAM_ATTR fusb302::gpio_isr_handler(void* arg)
 {
-    auto taskStatus = pdFALSE;
-    xEventGroupSetBitsFromISR(intr_evt_group, FUSB302_INTR_EVENT_BIT, &taskStatus);
+    static BaseType_t taskStatus = pdFALSE;
+    xEventGroupSetBitsFromISR(intr_evt_group, FUSB302_INTR_GENERAL_BIT, &taskStatus);
 }
 
 void fusb302::write_reg(uint8_t reg, uint8_t param)
@@ -161,23 +163,30 @@ esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max
     // Step 6: Flush FIFO
     set_ctrl_1(FUSB302_REG_CONTROL1_RX_FLUSH);
 
-
-
     return ESP_OK;
 }
 
 void fusb302::intr_task(void* arg)
 {
+    ESP_LOGD(TAG, "Interrupt task started");
     auto *ctx = static_cast<fusb302 *>(arg);
-    for(;;) {
+    while(true) {
         // Clear on exit, wait only one bit
-        if (xEventGroupWaitBits(intr_evt_group, FUSB302_INTR_EVENT_BIT, pdTRUE, pdFALSE, portMAX_DELAY)) {
-            uint8_t intr_reg = ctx->get_interrupt();
-            if ((intr_reg & FUSB302_REG_INTERRUPT_CRC_CHK) > 0) {
-                ctx->rx_cb();
-            } else if ((intr_reg & FUSB302_REG_INTERRUPT_ALERT) > 0) {
+        xEventGroupWaitBits(intr_evt_group, FUSB302_INTR_GENERAL_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
 
-            }
+        if (ctx == nullptr) {
+            ESP_LOGE(TAG, "Interrupt triggered but ctx is invalid");
+            return;
+        }
+
+        ESP_LOGD(TAG, "Interrupt triggered, talking on I2C num: ");
+        ctx->clear_irq();
+        if ((ctx->interrupt_reg & FUSB302_REG_INTERRUPT_VBUSOK) > 0) {
+            ESP_LOGI(TAG, "Cable connected!");
+            ctx->auto_config_polarity();
+        } else if ((ctx->interrupt_reg & FUSB302_REG_INTERRUPT_CRC_CHK) > 0) {
+            ESP_LOGI(TAG, "Packet received!");
+            if (ctx->rx_cb) ctx->rx_cb();
         }
     }
 }
@@ -204,8 +213,8 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
     gpio_config_t intr_gpio_conf = {};
 
     intr_gpio_conf.mode = GPIO_MODE_INPUT;
-    intr_gpio_conf.intr_type = GPIO_INTR_POSEDGE;
-    intr_gpio_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    intr_gpio_conf.intr_type = GPIO_INTR_NEGEDGE;
+    intr_gpio_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
     intr_gpio_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     intr_gpio_conf.pin_bit_mask = (1U << (uint32_t)intr);
 
@@ -220,15 +229,15 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
         ESP_LOGE(TAG, "Cannot create interrupt event group");
     }
 
-    // Start GPIO Interrupt task
-    xTaskCreate(intr_task, "fusb302_intr", 4096, this, 10, nullptr);
-
     // Setup interrupt service
     err = gpio_install_isr_service(0);
-    err = err ?: gpio_isr_handler_add((gpio_num_t)intr, gpio_isr_handler, (void*)intr);
+    err = err ?: gpio_isr_handler_add((gpio_num_t)intr, gpio_isr_handler, nullptr);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Cannot setup GPIO interrupt services");
     }
+
+    // Start GPIO Interrupt task
+    xTaskCreate(fusb302::intr_task, "fusb_intr", 4096, this, 3, nullptr);
 
     // Read Device ID
     uint8_t dev_id = get_dev_id();
@@ -240,29 +249,22 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
     reg_ctrl_3 |= PD_RETRY_COUNT << FUSB302_REG_CONTROL3_N_RETRIES_POS;
     set_ctrl_3(reg_ctrl_3);
 
-    // Switches0: Enable pull-downs, monitor CC1
-    set_switch_0(FUSB302_REG_SWITCHES0_CC1_PD_EN |
-                                FUSB302_REG_SWITCHES0_CC2_PD_EN |
-                                FUSB302_REG_SWITCHES0_MEAS_CC1);
-
     // Mask interrupts
-    // Enable CRC_CHK, BC_LVL, ALERT and COLLISION
+    // Enable CRC_CHK and VBUSOK (set to 0), disable others
     uint8_t mask_bits = 0xff;
-    mask_bits &= ~(FUSB302_REG_MASK_CRC_CHK |       // 0 (Un-mask) to enable, 1 to disable
-                    FUSB302_REG_MASK_BC_LVL |
-                    FUSB302_REG_MASK_ALERT  |
-                    FUSB302_REG_MASK_COLLISION);
+    mask_bits &= ~FUSB302_REG_MASK_CRC_CHK; // CRC_CHK interrupt for packet receive callback
+    mask_bits &= ~FUSB302_REG_MASK_VBUSOK; // VBUSOK interrupt for charger connection detection
     set_mask(mask_bits);
-
-    // Enable HARDRESET, TX_SUCCESS and RETRY_FAIL
-    mask_bits = 0xff;
-    mask_bits &= ~(FUSB302_REG_MASK_A_HARDRESET   |
-                    FUSB302_REG_MASK_A_TX_SUCCESS |
-                    FUSB302_REG_MASK_A_RETRYFAIL);
-    set_mask_a(mask_bits);
-
-    // Disable GCRCSENT
+    set_mask_a(0xff);
     set_mask_b(FUSB302_REG_MASK_B_GCRCSENT);
+
+    // Enable global interrupt
+    uint8_t ctrl0_reg = get_ctrl_0();
+    ctrl0_reg &= ~FUSB302_REG_CONTROL0_INT_MASK;
+    set_ctrl_0(ctrl0_reg);
+
+    // Clear IRQ
+    clear_irq();
 
     // Switches1: CC1 Tx Enable, PD 2.0, Auto CRC Enable
     set_switch_1(FUSB302_REG_SWITCHES1_TXCC1_EN |
@@ -271,6 +273,9 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
 
     // Enable all power
     set_power(FUSB302_REG_POWER_PWR_ALL);
+
+    // Clear IRQ
+    clear_irq();
 }
 
 void fusb302::on_pkt_received(const tcpc_def::rx_ready_cb &func)
@@ -295,6 +300,7 @@ esp_err_t fusb302::set_cc(tcpc_def::cc_pull pull)
 
 esp_err_t fusb302::get_cc(tcpc_def::cc_status *status_cc1, tcpc_def::cc_status *status_cc2)
 {
+    ESP_LOGD(TAG, "Getting CC status");
     if(status_cc1 == nullptr || status_cc2 == nullptr) return ESP_ERR_INVALID_ARG;
 
     // TODO: implement source mode
@@ -338,6 +344,7 @@ esp_err_t fusb302::set_polarity(bool is_flipped)
 
 esp_err_t fusb302::auto_config_polarity()
 {
+    ESP_LOGD(TAG, "Polarity auto config started");
     tcpc_def::cc_status status_cc1, status_cc2;
     auto ret = get_cc(&status_cc1, &status_cc2);
     if (ret != ESP_OK) {
@@ -632,5 +639,14 @@ tcpc_def::cc_status fusb302::convert_bc_lvl(uint8_t bc_lvl)
     }
 
     return ret;
+}
+
+void fusb302::clear_irq()
+{
+    interrupt_reg = get_interrupt();
+    interrupt_a_reg = get_interrupt_a();
+    interrupt_b_reg = get_interrupt_b();
+
+    ESP_LOGD(TAG, "IRQ: 0x%02x, a: 0x%02x, b: 0x%02x", interrupt_reg, interrupt_a_reg, interrupt_b_reg);
 }
 
