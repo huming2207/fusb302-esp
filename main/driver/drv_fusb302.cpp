@@ -272,7 +272,7 @@ fusb302::fusb302(int sda, int scl, int intr, i2c_port_t port)
     // Clear IRQ
     clear_irq();
 
-    // Switches1: CC1 Tx Enable, PD 2.0, Auto CRC Enable
+    // Switches1: CC1 Tx Enable, PD 2.0, Auto GoodCRC Enable
     set_switch_1(FUSB302_REG_SWITCHES1_TXCC1_EN |
                             FUSB302_REG_SWITCHES1_AUTO_GCRC |
                             FUSB302_REG_SWITCHES1_SPECREV1);
@@ -340,6 +340,7 @@ esp_err_t fusb302::set_polarity(bool is_flipped)
     sw1_reg &= ~FUSB302_REG_SWITCHES1_TXCC1_EN;
     sw1_reg &= ~FUSB302_REG_SWITCHES1_TXCC2_EN;
     sw1_reg |= is_flipped ? FUSB302_REG_SWITCHES1_TXCC2_EN : FUSB302_REG_SWITCHES1_TXCC1_EN;
+    sw1_reg |= FUSB302_REG_SWITCHES1_AUTO_GCRC; // Enable Auto GoodCRC again?
 
     // Step 2.1: Write back to Switch1
     set_switch_1(sw1_reg);
