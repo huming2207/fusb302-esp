@@ -32,3 +32,53 @@ esp_err_t tcpm::on_pkt_rx()
     return ret;
 }
 
+esp_err_t tcpm::decode_get_src_cap(uint16_t header, uint32_t *data_objs, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::encode_get_src_cap(proto_def::header &header, proto_def::pdo *pdos, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::decode_source_cap(uint16_t header, uint32_t *data_objs, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::encode_source_cap(proto_def::header &header, proto_def::pdo *pdos, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::decode_accept(uint16_t header, uint32_t *data_objs, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::encode_accept(proto_def::header &header, proto_def::pdo *pdos, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::decode_request(uint16_t header, uint32_t *data_objs, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::encode_request(proto_def::header &header, proto_def::pdo *pdos, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::decode_ps_ready(uint16_t header, uint32_t *data_objs, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::encode_ps_ready(proto_def::header &header, proto_def::pdo *pdos, size_t len)
+{
+    return 0;
+}
+

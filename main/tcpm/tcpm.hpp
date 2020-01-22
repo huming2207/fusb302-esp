@@ -42,15 +42,15 @@ namespace proto_def
         GET_SINK_CAP_EXTENDED   = 0b10110,
 
         // Data packets
-        SOURCE_CAPABILITIES     = -0b00001,
-        REQUEST                 = -0b00010,
-        BIST                    = -0b00011,
-        SINK_CAPABILITIES       = -0b00100,
-        BATTERY_STATUS          = -0b00101,
-        ALERT                   = -0b00110,
-        GET_COUNTRY_INFO        = -0b00111,
-        ENTER_USB               = -0b01000,
-        VENDOR_DEFINED          = -0b01111
+        SOURCE_CAPABILITIES     = 0b00001,
+        REQUEST                 = 0b00010,
+        BIST                    = 0b00011,
+        SINK_CAPABILITIES       = 0b00100,
+        BATTERY_STATUS          = 0b00101,
+        ALERT                   = 0b00110,
+        GET_COUNTRY_INFO        = 0b00111,
+        ENTER_USB               = 0b01000,
+        VENDOR_DEFINED          = 0b01111
     };
 
     enum port_power_role {
@@ -93,6 +93,13 @@ namespace proto_def
 
 namespace protocol
 {
+    struct tcpm_parsers {
+        proto_def::pkt_type type;
+        bool ctrl_packet;
+        std::function<esp_err_t(uint16_t header, uint32_t *data_objs, size_t len)> decoder;
+        std::function<esp_err_t(proto_def::header &header, proto_def::pdo *pdos, size_t len)> encoder;
+    };
+
     class tcpm
     {
     public:
@@ -100,7 +107,51 @@ namespace protocol
         esp_err_t on_pkt_rx();
 
     private:
+        esp_err_t decode_get_src_cap(uint16_t header, uint32_t *data_objs, size_t len);
+        esp_err_t encode_get_src_cap(proto_def::header &header, proto_def::pdo *pdos, size_t len);
+        esp_err_t decode_source_cap(uint16_t header, uint32_t *data_objs, size_t len);
+        esp_err_t encode_source_cap(proto_def::header &header, proto_def::pdo *pdos, size_t len);
+        esp_err_t decode_accept(uint16_t header, uint32_t *data_objs, size_t len);
+        esp_err_t encode_accept(proto_def::header &header, proto_def::pdo *pdos, size_t len);
+        esp_err_t decode_request(uint16_t header, uint32_t *data_objs, size_t len);
+        esp_err_t encode_request(proto_def::header &header, proto_def::pdo *pdos, size_t len);
+        esp_err_t decode_ps_ready(uint16_t header, uint32_t *data_objs, size_t len);
+        esp_err_t encode_ps_ready(proto_def::header &header, proto_def::pdo *pdos, size_t len);
 
+
+    private:
+        const tcpm_parsers parser_lut[5] = {
+            {
+                proto_def::GET_SOURCE_CAP,
+                true,
+                [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_source_cap(header, data_objs, len); },
+                [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_source_cap(header, pdos, len); }
+            },
+            {
+                proto_def::SOURCE_CAPABILITIES,
+                false,
+                [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_get_src_cap(header, data_objs, len); },
+                [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_get_src_cap(header, pdos, len); }
+            },
+            {
+                proto_def::ACCEPT,
+                true,
+                [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_accept(header, data_objs, len); },
+                [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_accept(header, pdos, len); }
+            },
+            {
+                proto_def::REQUEST,
+                false,
+                [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_request(header, data_objs, len); },
+                [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_request(header, pdos, len); }
+            },
+            {
+                proto_def::PS_READY,
+                true,
+                [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_ps_ready(header, data_objs, len); },
+                [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_ps_ready(header, pdos, len); }
+            },
+        };
 
 
     private:
