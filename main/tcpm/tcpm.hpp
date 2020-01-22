@@ -50,7 +50,10 @@ namespace proto_def
         ALERT                   = 0b00110,
         GET_COUNTRY_INFO        = 0b00111,
         ENTER_USB               = 0b01000,
-        VENDOR_DEFINED          = 0b01111
+        VENDOR_DEFINED          = 0b01111,
+
+        // Unimplemented
+        UNIMPLEMENTED           = INT32_MAX,
     };
 
     enum port_power_role {
@@ -117,39 +120,48 @@ namespace protocol
         esp_err_t encode_request(proto_def::header &header, proto_def::pdo *pdos, size_t len);
         esp_err_t decode_ps_ready(uint16_t header, uint32_t *data_objs, size_t len);
         esp_err_t encode_ps_ready(proto_def::header &header, proto_def::pdo *pdos, size_t len);
-
+        esp_err_t decode_not_supported(uint16_t header, uint32_t *data_objs, size_t len);
+        esp_err_t encode_not_supported(proto_def::header &header, proto_def::pdo *pdos, size_t len);
+        esp_err_t decode_unimplemented(uint16_t header, uint32_t *data_objs, size_t len);
+        esp_err_t encode_unimplemented(proto_def::header &header, proto_def::pdo *pdos, size_t len);
 
     private:
-        const tcpm_parsers parser_lut[5] = {
+        const tcpm_parsers parser_lut[7] = {
             {
                 proto_def::GET_SOURCE_CAP,
                 true,
                 [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_source_cap(header, data_objs, len); },
                 [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_source_cap(header, pdos, len); }
-            },
-            {
+            }, {
                 proto_def::SOURCE_CAPABILITIES,
                 false,
                 [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_get_src_cap(header, data_objs, len); },
                 [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_get_src_cap(header, pdos, len); }
-            },
-            {
+            }, {
                 proto_def::ACCEPT,
                 true,
                 [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_accept(header, data_objs, len); },
                 [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_accept(header, pdos, len); }
-            },
-            {
+            }, {
                 proto_def::REQUEST,
                 false,
                 [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_request(header, data_objs, len); },
                 [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_request(header, pdos, len); }
-            },
-            {
+            }, {
                 proto_def::PS_READY,
                 true,
                 [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_ps_ready(header, data_objs, len); },
                 [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_ps_ready(header, pdos, len); }
+            }, {
+                proto_def::NOT_SUPPORTED,
+                true,
+                [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_not_supported(header, data_objs, len); },
+                [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_not_supported(header, pdos, len); }
+            }, {
+                proto_def::UNIMPLEMENTED,
+                false,
+                [&](uint16_t header, uint32_t *data_objs, size_t len) { return decode_unimplemented(header, data_objs, len); },
+                [&](proto_def::header &header, proto_def::pdo *pdos, size_t len) { return encode_unimplemented(header, pdos, len); }
             },
         };
 

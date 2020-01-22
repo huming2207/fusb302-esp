@@ -5,6 +5,10 @@
 
 #define TAG "tcpm"
 
+#define PKT_HEADER_MSG_TYPE_MASK        (0x1FU)
+#define PKT_HEADER_PORT_DATA_ROLE_MASK  (0x20U)
+#define PKT_HEADER_SPEC_REV_MASK        (0xC0U)
+
 using namespace protocol;
 
 tcpm::tcpm(device::tcpc &_device) : port_dev(_device)
@@ -27,7 +31,11 @@ esp_err_t tcpm::on_pkt_rx()
     }
 
     // Parse packet
+    for (auto &parser : parser_lut) {
+        if ((parser.type == (header & PKT_HEADER_MSG_TYPE_MASK)) && (parser.ctrl_packet == (data_obj_cnt == 0))) {
 
+        }
+    }
 
     return ret;
 }
@@ -78,6 +86,26 @@ esp_err_t tcpm::decode_ps_ready(uint16_t header, uint32_t *data_objs, size_t len
 }
 
 esp_err_t tcpm::encode_ps_ready(proto_def::header &header, proto_def::pdo *pdos, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::decode_not_supported(uint16_t header, uint32_t *data_objs, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::encode_not_supported(proto_def::header &header, proto_def::pdo *pdos, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::decode_unimplemented(uint16_t header, uint32_t *data_objs, size_t len)
+{
+    return 0;
+}
+
+esp_err_t tcpm::encode_unimplemented(proto_def::header &header, proto_def::pdo *pdos, size_t len)
 {
     return 0;
 }
