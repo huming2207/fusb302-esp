@@ -130,3 +130,66 @@ esp_err_t tcpm::on_ps_ready_received()
     return 0;
 }
 
+void tcpm::sink_fsm_task(void *arg)
+{
+    auto *ctx = static_cast<tcpm *>(arg);
+
+    // Setup timeout timer
+    esp_timer_handle_t timer_handle = nullptr;
+    esp_timer_create_args_t timer_config = {};
+    timer_config.callback = &tcpm::on_sink_fsm_timeout;
+    timer_config.arg = arg;
+    timer_config.name = "sink_fsm_tm";
+    timer_config.dispatch_method = ESP_TIMER_TASK;
+
+    while (true) {
+        if(ctx == nullptr) break;
+        auto &curr_state = ctx->sink_fsm[ctx->curr_sink_state];
+
+        // Enable timer
+        if (curr_state.timeout_ms > 0) {
+            ctx->sink_fsm_ret = esp_timer_start_once(timer_handle, curr_state.timeout_ms);
+            if (ctx->sink_fsm_ret != ESP_OK) {
+                ESP_LOGE(TAG, "Cannot enable SINK FSM's timeout timer, ret: 0x%x", ctx->sink_fsm_ret);
+                ctx->set_sink_state(proto_def::FSM_ERROR);
+                return;
+            }
+        }
+
+        // Run callback
+        ctx->sink_fsm_ret = curr_state.cb();
+        if (ctx->sink_fsm_ret != ESP_OK) {
+            ESP_LOGE(TAG, "SINK State at 0x%x returns: 0x%x", curr_state.curr, ctx->sink_fsm_ret);
+            ctx->set_sink_state(proto_def::FSM_ERROR);
+            return;
+        }
+
+        // Stop timer
+        ctx->sink_fsm_ret = esp_timer_stop(timer_handle);
+        if (ctx->sink_fsm_ret != ESP_OK) {
+            ESP_LOGE(TAG, "Cannot disable SINK FSM's timeout timer, ret: 0x%x", ctx->sink_fsm_ret);
+            ctx->set_sink_state(proto_def::FSM_ERROR);
+            return;
+        }
+
+        // Set next state
+        ctx->set_sink_state(curr_state.next);
+    }
+
+    vTaskDelete(nullptr);
+}
+
+void tcpm::on_sink_fsm_timeout(void *arg)
+{
+
+}
+
+void tcpm::set_sink_state(proto_def::pkt_type type)
+{
+    for(size_t idx = 0; idx < sizeof(sink_fsm); idx++) {
+        if (type == sink_fsm[idx].curr) {
+            curr_sink_state = idx;
+        }
+    }
+}
+

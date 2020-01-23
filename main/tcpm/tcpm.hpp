@@ -117,7 +117,7 @@ namespace protocol
         proto_def::pkt_type curr;
         proto_def::pkt_type next;
         proto_def::fsm_direction direction;
-        TickType_t timeout_ticks;
+        int timeout_ms;
         std::function<esp_err_t()> cb;
     };
 
@@ -136,6 +136,9 @@ namespace protocol
     private:
         esp_err_t add_pdo(uint32_t data_obj);
         esp_err_t add_pdo(const uint32_t *data_objs, uint8_t len);
+        static void sink_fsm_task(void *arg);
+        static void on_sink_fsm_timeout(void *arg);
+        void set_sink_state(proto_def::pkt_type type);
 
     private:
         const tcpm_state sink_fsm[6] = {
@@ -143,37 +146,37 @@ namespace protocol
                     proto_def::FSM_START,
                     proto_def::GET_SOURCE_CAP,
                     proto_def::TRANSIT_NO_DIRECTION,
-                    portMAX_DELAY,
+                    -1,
                     [&]() { return ESP_OK; }
             },{
                     proto_def::GET_SOURCE_CAP,
                     proto_def::SOURCE_CAPABILITIES,
                     proto_def::TRANSIT_SINK_TO_SOURCE,
-                    pdMS_TO_TICKS(1000),
+                    1000,
                     [&]() { return ESP_OK; }
             },{
                     proto_def::SOURCE_CAPABILITIES,
                     proto_def::REQUEST,
                     proto_def::TRANSIT_SOURCE_TO_SINK,
-                    portMAX_DELAY,
+                    -1,
                     [&]() { return on_src_cap_received(); }
             }, {
                     proto_def::REQUEST,
                     proto_def::ACCEPT,
                     proto_def::TRANSIT_SINK_TO_SOURCE,
-                    pdMS_TO_TICKS(1000),
+                    1000,
                     [&]() { return on_request_sent(); }
             }, {
                     proto_def::ACCEPT,
                     proto_def::PS_READY,
                     proto_def::TRANSIT_SINK_TO_SOURCE,
-                    pdMS_TO_TICKS(1000),
+                    1000,
                     [&]() { return ESP_OK; }
             }, {
                     proto_def::PS_READY,
                     proto_def::FSM_STOP,
                     proto_def::TRANSIT_NO_DIRECTION,
-                    portMAX_DELAY,
+                    -1,
                     [&]() { return on_ps_ready_received(); }
             }
         };
@@ -184,8 +187,8 @@ namespace protocol
 
         proto_def::header pkt_header = {};
         std::vector<proto_def::pdo> pdo_list;
-        uint8_t curr_sink_state = 0;
-        
+        size_t curr_sink_state = 0;
+        esp_err_t sink_fsm_ret = ESP_OK;
         
     };
 }
