@@ -1,5 +1,8 @@
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
+#include <freertos/task.h>
 #include <esp_err.h>
 #include <tcpc_drv.hpp>
 
@@ -114,7 +117,7 @@ namespace protocol
         proto_def::pkt_type curr;
         proto_def::pkt_type next;
         proto_def::fsm_direction direction;
-        int timeout_ms;
+        TickType_t timeout_ticks;
         std::function<esp_err_t()> cb;
     };
 
@@ -140,37 +143,37 @@ namespace protocol
                     proto_def::FSM_START,
                     proto_def::GET_SOURCE_CAP,
                     proto_def::TRANSIT_NO_DIRECTION,
-                    -1,
+                    portMAX_DELAY,
                     [&]() { return ESP_OK; }
             },{
                     proto_def::GET_SOURCE_CAP,
                     proto_def::SOURCE_CAPABILITIES,
                     proto_def::TRANSIT_SINK_TO_SOURCE,
-                    1000,
+                    pdMS_TO_TICKS(1000),
                     [&]() { return ESP_OK; }
             },{
                     proto_def::SOURCE_CAPABILITIES,
                     proto_def::REQUEST,
                     proto_def::TRANSIT_SOURCE_TO_SINK,
-                    -1,
+                    portMAX_DELAY,
                     [&]() { return on_src_cap_received(); }
             }, {
                     proto_def::REQUEST,
                     proto_def::ACCEPT,
                     proto_def::TRANSIT_SINK_TO_SOURCE,
-                    1000,
+                    pdMS_TO_TICKS(1000),
                     [&]() { return on_request_sent(); }
             }, {
                     proto_def::ACCEPT,
                     proto_def::PS_READY,
                     proto_def::TRANSIT_SINK_TO_SOURCE,
-                    1000,
+                    pdMS_TO_TICKS(1000),
                     [&]() { return ESP_OK; }
             }, {
                     proto_def::PS_READY,
                     proto_def::FSM_STOP,
                     proto_def::TRANSIT_NO_DIRECTION,
-                    1000,
+                    portMAX_DELAY,
                     [&]() { return on_ps_ready_received(); }
             }
         };
