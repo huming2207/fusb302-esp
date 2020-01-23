@@ -28,6 +28,9 @@ esp_err_t tcpm::request_fixed_power(uint32_t voltage_mv, uint32_t current_ma)
 
 esp_err_t tcpm::on_pkt_rx()
 {
+    // Clear PDO list
+    pdo_list.clear();
+
     // Read packet from FIFO
     uint16_t header = 0;
     uint32_t data_objs[7] = {0 };
@@ -40,7 +43,8 @@ esp_err_t tcpm::on_pkt_rx()
 
     // Parse packet header
     pkt_header.num_obj = ((header & PKT_HEADER_NUM_DATA_OBJ_MASK) >> PKT_HEADER_NUM_DATA_OBJ_POS);
-    pkt_header.type         = (proto_def::pkt_type)(header & 0xfU);
+    if(pkt_header.num_obj > 0) pkt_header.type = (proto_def::pkt_type)((header & 0x1fU) + proto_def::DATA_PACKET_BASE);
+    else pkt_header.type = (proto_def::pkt_type)(header & 0x1fU);
     pkt_header.data_role    = (proto_def::port_data_role)((uint8_t)(header >> 5U) & 0b1U);
     pkt_header.msg_id       = ((uint8_t)(header >> 9U) & 0b111U);
     pkt_header.revision     = (proto_def::spec_revision)((uint8_t)(header >> 6U) & 0b11U);
@@ -101,8 +105,12 @@ esp_err_t tcpm::add_pdo(uint32_t data_obj)
     }
 
     // Step 3: Append to PDO List
-    pdo_list.push_back(new_pdo);
-    return ESP_OK;
+    if(pdo_list.size() < 7) {
+        pdo_list.push_back(new_pdo);
+        return ESP_OK;
+    } else {
+        return ESP_ERR_NO_MEM;
+    }
 }
 
 esp_err_t tcpm::add_pdo(const uint32_t *data_objs, uint8_t len)
@@ -141,6 +149,7 @@ void tcpm::sink_fsm_task(void *arg)
     timer_config.arg = arg;
     timer_config.name = "sink_fsm_tm";
     timer_config.dispatch_method = ESP_TIMER_TASK;
+    esp_timer_create(&timer_config, &timer_handle);
 
     while (true) {
         if(ctx == nullptr) break;
@@ -152,7 +161,7 @@ void tcpm::sink_fsm_task(void *arg)
             if (ctx->sink_fsm_ret != ESP_OK) {
                 ESP_LOGE(TAG, "Cannot enable SINK FSM's timeout timer, ret: 0x%x", ctx->sink_fsm_ret);
                 ctx->set_sink_state(proto_def::FSM_ERROR);
-                return;
+                continue;
             }
         }
 
@@ -161,7 +170,7 @@ void tcpm::sink_fsm_task(void *arg)
         if (ctx->sink_fsm_ret != ESP_OK) {
             ESP_LOGE(TAG, "SINK State at 0x%x returns: 0x%x", curr_state.curr, ctx->sink_fsm_ret);
             ctx->set_sink_state(proto_def::FSM_ERROR);
-            return;
+            continue;
         }
 
         // Stop timer
@@ -169,19 +178,20 @@ void tcpm::sink_fsm_task(void *arg)
         if (ctx->sink_fsm_ret != ESP_OK) {
             ESP_LOGE(TAG, "Cannot disable SINK FSM's timeout timer, ret: 0x%x", ctx->sink_fsm_ret);
             ctx->set_sink_state(proto_def::FSM_ERROR);
-            return;
+            continue;
         }
 
         // Set next state
         ctx->set_sink_state(curr_state.next);
     }
 
+    esp_timer_delete(timer_handle);
     vTaskDelete(nullptr);
 }
 
 void tcpm::on_sink_fsm_timeout(void *arg)
 {
-
+    auto *ctx = static_cast<tcpm *>(arg);
 }
 
 void tcpm::set_sink_state(proto_def::pkt_type type)
