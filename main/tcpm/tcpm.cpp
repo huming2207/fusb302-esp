@@ -19,6 +19,9 @@ tcpm::tcpm(device::tcpc &_device) : port_dev(_device)
     port_dev.on_pkt_received([&]() -> esp_err_t {
         return on_pkt_rx();
     });
+
+    // Initialise message queue
+    msg_queue = xQueueCreate(10, sizeof(proto_def::pkt_type));
 }
 
 esp_err_t tcpm::request_fixed_power(uint32_t voltage_mv, uint32_t current_ma)
@@ -28,12 +31,9 @@ esp_err_t tcpm::request_fixed_power(uint32_t voltage_mv, uint32_t current_ma)
 
 esp_err_t tcpm::on_pkt_rx()
 {
-    // Clear PDO list
-    pdo_list.clear();
-
     // Read packet from FIFO
     uint16_t header = 0;
-    uint32_t data_objs[7] = {0 };
+    uint32_t data_objs[7] = { 0 };
     size_t data_obj_cnt = 0;
     auto ret = port_dev.receive_pkt(&header, data_objs, sizeof(data_objs), &data_obj_cnt);
     if (ret != ESP_OK) {
@@ -50,7 +50,17 @@ esp_err_t tcpm::on_pkt_rx()
     pkt_header.revision     = (proto_def::spec_revision)((uint8_t)(header >> 6U) & 0b11U);
     pkt_header.power_role   = (proto_def::port_power_role)((uint8_t)(header >> 8U) & 0b1U);
 
-    return add_pdo(data_objs, pkt_header.num_obj);;
+    if(xQueueSend(msg_queue, (const void *)&pkt_header.type, pdMS_TO_TICKS(5000)) != pdPASS) {
+        return ESP_ERR_TIMEOUT; // Shouldn't reach here though...
+    }
+
+    // Refresh PDO list when Src Cap packet is received
+    if(pkt_header.type == proto_def::SOURCE_CAPABILITIES) {
+        pdo_list.clear();
+        ret = add_pdo(data_objs, pkt_header.num_obj);
+    }
+
+    return ret;
 }
 
 esp_err_t tcpm::add_pdo(uint32_t data_obj)
@@ -123,83 +133,86 @@ esp_err_t tcpm::add_pdo(const uint32_t *data_objs, uint8_t len)
     return ret;
 }
 
-esp_err_t tcpm::on_src_cap_received()
+esp_err_t tcpm::perform_sink(uint32_t timeout_ms)
 {
-    return 0;
-}
+    esp_err_t ret = ESP_OK;
+    proto_def::pkt_type rx_type;
 
-esp_err_t tcpm::on_request_sent()
-{
-    return 0;
-}
+    // Step 1. Wait for Source Capabilities.
+    ret = wait_src_cap(timeout_ms);
+    if (ret != ESP_OK) {
 
-esp_err_t tcpm::on_ps_ready_received()
-{
-    return 0;
-}
-
-void tcpm::sink_fsm_task(void *arg)
-{
-    auto *ctx = static_cast<tcpm *>(arg);
-
-    // Setup timeout timer
-    esp_timer_handle_t timer_handle = nullptr;
-    esp_timer_create_args_t timer_config = {};
-    timer_config.callback = &tcpm::on_sink_fsm_timeout;
-    timer_config.arg = arg;
-    timer_config.name = "sink_fsm_tm";
-    timer_config.dispatch_method = ESP_TIMER_TASK;
-    esp_timer_create(&timer_config, &timer_handle);
-
-    while (true) {
-        if(ctx == nullptr) break;
-        auto &curr_state = ctx->sink_fsm[ctx->curr_sink_state];
-
-        // Enable timer
-        if (curr_state.timeout_ms > 0) {
-            ctx->sink_fsm_ret = esp_timer_start_once(timer_handle, curr_state.timeout_ms);
-            if (ctx->sink_fsm_ret != ESP_OK) {
-                ESP_LOGE(TAG, "Cannot enable SINK FSM's timeout timer, ret: 0x%x", ctx->sink_fsm_ret);
-                ctx->set_sink_state(proto_def::FSM_ERROR);
-                continue;
-            }
+        // If no luck, ask for it.
+        ret = send_get_src_cap();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to send Src_Cap");
+            return ret;
         }
 
-        // Run callback
-        ctx->sink_fsm_ret = curr_state.cb();
-        if (ctx->sink_fsm_ret != ESP_OK) {
-            ESP_LOGE(TAG, "SINK State at 0x%x returns: 0x%x", curr_state.curr, ctx->sink_fsm_ret);
-            ctx->set_sink_state(proto_def::FSM_ERROR);
-            continue;
-        }
-
-        // Stop timer
-        ctx->sink_fsm_ret = esp_timer_stop(timer_handle);
-        if (ctx->sink_fsm_ret != ESP_OK) {
-            ESP_LOGE(TAG, "Cannot disable SINK FSM's timeout timer, ret: 0x%x", ctx->sink_fsm_ret);
-            ctx->set_sink_state(proto_def::FSM_ERROR);
-            continue;
-        }
-
-        // Set next state
-        ctx->set_sink_state(curr_state.next);
-    }
-
-    esp_timer_delete(timer_handle);
-    vTaskDelete(nullptr);
-}
-
-void tcpm::on_sink_fsm_timeout(void *arg)
-{
-    auto *ctx = static_cast<tcpm *>(arg);
-}
-
-void tcpm::set_sink_state(proto_def::pkt_type type)
-{
-    for(size_t idx = 0; idx < sizeof(sink_fsm); idx++) {
-        if (type == sink_fsm[idx].curr) {
-            curr_sink_state = idx;
+        // Try again?
+        ret = wait_src_cap(timeout_ms);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Still no Src_Cap received after Get_Src_Cap sent");
+            return ret;
         }
     }
+
+    // Step 2: Send REQUEST
+    ret = send_request();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Cannot send REQUEST packet");
+        return ret;
+    }
+
+    // Step 3: Wait for ACCEPT
+    if (xQueueReceive(msg_queue, &rx_type, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
+        ESP_LOGE(TAG, "ACCEPT packet receive timeout");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if (rx_type != proto_def::ACCEPT) {
+        ESP_LOGE(TAG, "Received packet type is not ACCEPT: 0x%x", rx_type);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Step 4: Wait for PS_READY
+    if (xQueueReceive(msg_queue, &rx_type, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
+        ESP_LOGE(TAG, "ACCEPT packet receive timeout");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if (rx_type != proto_def::PS_READY) {
+        ESP_LOGE(TAG, "Received packet type is not PS_READY: 0x%x", rx_type);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    return ret;
+}
+
+esp_err_t tcpm::send_get_src_cap()
+{
+    return 0;
+}
+
+esp_err_t tcpm::send_request()
+{
+    return 0;
+}
+
+esp_err_t tcpm::wait_src_cap(uint32_t timeout_ms)
+{
+    proto_def::pkt_type rx_type;
+
+    if (xQueueReceive(msg_queue, &rx_type, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
+        ESP_LOGW(TAG, "No message received in %u ms", timeout_ms);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if (rx_type != proto_def::SOURCE_CAPABILITIES) {
+        ESP_LOGE(TAG, "Message received but it's not Src_Cap: 0x%x", rx_type);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    return ESP_OK;
 }
 

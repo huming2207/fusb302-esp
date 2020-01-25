@@ -1,7 +1,7 @@
 #pragma once
 
 #include <freertos/FreeRTOS.h>
-#include <freertos/timers.h>
+#include <freertos/queue.h>
 #include <freertos/task.h>
 #include <esp_err.h>
 #include <tcpc_drv.hpp>
@@ -114,9 +114,9 @@ namespace proto_def
 namespace protocol
 {
     struct tcpm_state {
-        proto_def::pkt_type curr;
-        proto_def::pkt_type next;
-        proto_def::fsm_direction direction;
+        proto_def::pkt_type curr_type;
+        proto_def::pkt_type next_state;
+        proto_def::pkt_type timeout_state;
         int timeout_ms;
         std::function<esp_err_t()> cb;
     };
@@ -126,69 +126,24 @@ namespace protocol
     public:
         explicit tcpm(device::tcpc& _device);
         esp_err_t on_pkt_rx();
+        esp_err_t perform_sink(uint32_t timeout_ms = 1000);
         esp_err_t request_fixed_power(uint32_t voltage_mv, uint32_t current_ma);
 
     private:
-        esp_err_t on_src_cap_received();
-        esp_err_t on_request_sent();
-        esp_err_t on_ps_ready_received();
+        esp_err_t wait_src_cap(uint32_t timeout_ms = 1000);
+        esp_err_t send_get_src_cap();
+        esp_err_t send_request();
 
     private:
         esp_err_t add_pdo(uint32_t data_obj);
         esp_err_t add_pdo(const uint32_t *data_objs, uint8_t len);
-        static void sink_fsm_task(void *arg);
-        static void on_sink_fsm_timeout(void *arg);
-        void set_sink_state(proto_def::pkt_type type);
-
-    private:
-        const tcpm_state sink_fsm[6] = {
-            {
-                    proto_def::FSM_START,
-                    proto_def::GET_SOURCE_CAP,
-                    proto_def::TRANSIT_NO_DIRECTION,
-                    -1,
-                    [&]() { return ESP_OK; }
-            },{
-                    proto_def::GET_SOURCE_CAP,
-                    proto_def::SOURCE_CAPABILITIES,
-                    proto_def::TRANSIT_SINK_TO_SOURCE,
-                    1000,
-                    [&]() { return ESP_OK; }
-            },{
-                    proto_def::SOURCE_CAPABILITIES,
-                    proto_def::REQUEST,
-                    proto_def::TRANSIT_SOURCE_TO_SINK,
-                    -1,
-                    [&]() { return on_src_cap_received(); }
-            }, {
-                    proto_def::REQUEST,
-                    proto_def::ACCEPT,
-                    proto_def::TRANSIT_SINK_TO_SOURCE,
-                    1000,
-                    [&]() { return on_request_sent(); }
-            }, {
-                    proto_def::ACCEPT,
-                    proto_def::PS_READY,
-                    proto_def::TRANSIT_SINK_TO_SOURCE,
-                    1000,
-                    [&]() { return ESP_OK; }
-            }, {
-                    proto_def::PS_READY,
-                    proto_def::FSM_STOP,
-                    proto_def::TRANSIT_NO_DIRECTION,
-                    -1,
-                    [&]() { return on_ps_ready_received(); }
-            }
-        };
-
 
     private:
         device::tcpc& port_dev;
 
         proto_def::header pkt_header = {};
         std::vector<proto_def::pdo> pdo_list;
-        size_t curr_sink_state = 0;
-        esp_err_t sink_fsm_ret = ESP_OK;
-        
+
+        QueueHandle_t msg_queue = nullptr;
     };
 }
