@@ -58,7 +58,7 @@ uint8_t fusb302::read_reg(uint8_t reg)
 
 esp_err_t fusb302::transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt)
 {
-    if (data_objs == nullptr || obj_cnt < 0) return ESP_ERR_INVALID_ARG;
+    if (data_objs == nullptr && obj_cnt > 0) return ESP_ERR_INVALID_ARG;
 
     // Step 1. Flush Tx FIFO
     set_ctrl_0(FUSB302_REG_CONTROL0_TX_FLUSH);
@@ -76,12 +76,14 @@ esp_err_t fusb302::transmit_pkt(uint16_t header, const uint32_t *data_objs, size
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(header & 0xffU), true));
     ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(header >> 8U), true));
 
-    // Step 4. Send data objects
-    for (size_t idx = 0; idx < obj_cnt; idx ++) {
-        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] & 0xffU), true));
-        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 8U), true));
-        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 16U), true));
-        ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 24U), true));
+    // Step 4. Send data objects (if there is any)
+    if (data_objs != nullptr && obj_cnt > 0) {
+        for (size_t idx = 0; idx < obj_cnt; idx ++) {
+            ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] & 0xffU), true));
+            ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 8U), true));
+            ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 16U), true));
+            ESP_ERROR_CHECK(i2c_master_write_byte(cmd, (uint8_t)(data_objs[idx] >> 24U), true));
+        }
     }
 
     // Step 5. Send CRC, End of Packet and TX_OFF tokens, with TX_ON token appended
@@ -107,7 +109,8 @@ esp_err_t fusb302::transmit_pkt(uint16_t header, const uint32_t *data_objs, size
  */
 esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt)
 {
-    if (header == nullptr || data_objs == nullptr || actual_cnt == nullptr) return ESP_ERR_INVALID_ARG;
+    if (header == nullptr || ((data_objs == nullptr || actual_cnt == nullptr) && max_cnt > 0 ))
+        return ESP_ERR_INVALID_ARG;
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
 
