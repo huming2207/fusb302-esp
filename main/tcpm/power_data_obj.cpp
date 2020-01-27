@@ -74,3 +74,29 @@ esp_err_t power_data_obj::decode_pdo(uint32_t pdo_word)
     return ESP_OK;
 }
 
+bool power_data_obj::operator==(power_data_obj &other)
+{
+    return suspend_support          == other.suspend_support &&
+            unconstrained_power     == other.unconstrained_power &&
+            usb_comm                == other.usb_comm &&
+            dual_role_data          == other.dual_role_data &&
+            dual_role_power         == other.dual_role_power &&
+            unchunked_msg_support   == other.unchunked_msg_support &&
+            pdo_type                == other.pdo_type &&
+            overload                == other.overload &&
+            voltage_min             == other.voltage_min &&
+            voltage_max             == other.voltage_max &&
+            current                 == other.current &&
+            power                   == other.power;
+}
+
+bool power_data_obj::operator>(power_data_obj &other)
+{
+    return voltage_min > other.voltage_min && voltage_max > other.voltage_max;
+}
+
+bool power_data_obj::operator<(power_data_obj &other)
+{
+    return voltage_min < other.voltage_min && voltage_max < other.voltage_max;
+}
+

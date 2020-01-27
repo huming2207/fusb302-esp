@@ -9,17 +9,20 @@ namespace protocol
 {
     class power_data_obj
     {
-    private:
+    public:
         power_data_obj() = default;
         power_data_obj(power_data_obj const &) = default;
-        power_data_obj(uint32_t pdo_word);
+        explicit power_data_obj(uint32_t pdo_word);
 
         uint32_t encode_fixed_pdo();
         uint32_t encode_augmented_pdo();
 
         esp_err_t decode_pdo(uint32_t pdo_word);
 
-    private:
+        bool operator== (power_data_obj &other);
+        bool operator> (power_data_obj &other);
+        bool operator< (power_data_obj &other);
+
         bool suspend_support        = false;
         bool unconstrained_power    = false;
         bool usb_comm               = false;
