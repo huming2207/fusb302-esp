@@ -61,10 +61,10 @@ namespace protocol::def
         DFP = 1
     };
 
-    enum overload_cap {
-        OVERLOAD_NONE       = 0b00,
-        OVERLOAD_LEVEL_1    = 0b01,
-        OVERLOAD_LEVEL_2    = 0b10,
-        OVERLOAD_LEVEL_3    = 0b11
+    enum peak_current {
+        PEAK_CURRENT_NONE       = 0b00,
+        PEAK_CURRENT_LEVEL_1    = 0b01,
+        PEAK_CURRENT_LEVEL_2    = 0b10,
+        PEAK_CURRENT_LEVEL_3    = 0b11
     };
 }

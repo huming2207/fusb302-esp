@@ -7,6 +7,7 @@
 #include <tcpc_drv.hpp>
 
 #include "tcpm_def.hpp"
+#include "power_data_obj.hpp"
 
 namespace protocol::def
 {
@@ -17,27 +18,6 @@ namespace protocol::def
         port_data_role data_role = DFP;
         port_power_role power_role = SINK;
         pkt_type type = GOOD_CRC;
-    };
-
-    struct pdo {
-        bool suspend_support        = false;
-        bool unconstrained_power    = false;
-        bool usb_comm               = false;
-        bool dual_role_data         = false;
-        bool dual_role_power        = false;
-        bool unchunked_msg_support  = false;
-        pdo_type type               = FIXED_PDO;
-        overload_cap overload       = OVERLOAD_NONE;
-        uint32_t voltage_min        = 0;
-        uint32_t voltage_max        = 0;
-        uint32_t current            = 0;
-        uint32_t power              = 0;
-    };
-
-    enum fsm_direction {
-        TRANSIT_SINK_TO_SOURCE = 0,
-        TRANSIT_SOURCE_TO_SINK = 1,
-        TRANSIT_NO_DIRECTION = 2,
     };
 }
 
@@ -64,7 +44,7 @@ namespace protocol
         device::tcpc& port_dev;
 
         def::header pkt_header = {};
-        std::vector<def::pdo> pdo_list;
+        std::vector<power_data_obj> pdo_list;
 
         QueueHandle_t msg_queue = nullptr;
         uint8_t msg_id = 0;

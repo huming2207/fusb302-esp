@@ -61,53 +61,13 @@ esp_err_t tcpm::on_pkt_rx()
 
 esp_err_t tcpm::add_pdo(uint32_t data_obj)
 {
-    def::pdo new_pdo = {};
-
     // Step 1: Parse PDO type
-    uint32_t type = (data_obj >> 30U) & 0x3U;
-    if(type >= def::AUGMENTED_PDO) {
-        ESP_LOGW(TAG, "Unsupported PDO detected");
-        return ESP_ERR_NOT_SUPPORTED;
-    } else {
-        new_pdo.type = (def::pdo_type)type;
-    }
+    power_data_obj new_pdo;
 
-    // Step 2: Parse according to different types
-    switch(new_pdo.type) {
-        case def::FIXED_PDO: {
-            new_pdo.dual_role_power         = ((data_obj & BIT(29U)) != 0);
-            new_pdo.suspend_support         = ((data_obj & BIT(28U)) != 0);
-            new_pdo.unconstrained_power     = ((data_obj & BIT(27U)) != 0);
-            new_pdo.usb_comm                = ((data_obj & BIT(26U)) != 0);
-            new_pdo.dual_role_data          = ((data_obj & BIT(25U)) != 0);
-            new_pdo.unchunked_msg_support   = ((data_obj & BIT(24U)) != 0);
-            new_pdo.overload                = (def::overload_cap)((data_obj >> 20U) & 0x3U);
-            new_pdo.current                 = ((data_obj >> 10U) & 0x3ffU) * 10; // 10mA step
-            new_pdo.voltage_max             = ((data_obj) & 0x3ffU) * 50; // 50mV step
-            new_pdo.voltage_min             = new_pdo.voltage_max;
-            break;
-        }
-
-        case def::BATTERY_PDO: {
-            new_pdo.voltage_max             = ((data_obj >> 20U) & 0x3ffU) * 50;
-            new_pdo.voltage_min             = ((data_obj >> 10U) & 0x3ffU) * 50;
-            new_pdo.power                   = ((data_obj & 0x3ffU) * 250);
-            break;
-        }
-
-        case def::VARIABLE_PDO: {
-            new_pdo.voltage_max             = ((data_obj >> 20U) & 0x3ffU) * 50;
-            new_pdo.voltage_min             = ((data_obj >> 10U) & 0x3ffU) * 50;
-            new_pdo.current                 = ((data_obj & 0x3ffU) * 10);
-            break;
-        }
-
-        case def::AUGMENTED_PDO: {
-            new_pdo.current                 = ((data_obj & 0x7fU) * 50);
-            new_pdo.voltage_min             = ((data_obj >> 8U) & 0x7fU) * 100;
-            new_pdo.voltage_max             = ((data_obj >> 16U) & 0x7fU) * 100;
-            break;
-        }
+    // Step 2: Parse PDO word
+    auto ret = new_pdo.decode_pdo(data_obj);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Cannot decode PDO: 0x%x", data_obj);
     }
 
     // Step 3: Append to PDO List
@@ -191,7 +151,7 @@ esp_err_t tcpm::send_request_fixed(uint32_t voltage_mv, uint32_t current_ma)
     int idx = -1;
     for (auto it = pdo_list.begin(); it != pdo_list.end(); ++it) {
         if (it->voltage_max == voltage_mv && it->current >= current_ma &&
-            it->type == def::FIXED_PDO) {
+            it->pdo_type == def::FIXED_PDO) {
             idx = (it - pdo_list.begin()) + 1; // Object position in PD Spec starts from 1, not 0!
             break;
         }
@@ -203,11 +163,14 @@ esp_err_t tcpm::send_request_fixed(uint32_t voltage_mv, uint32_t current_ma)
         return ESP_ERR_NOT_FOUND;
     }
 
-    // Step 2:
-    uint32_t pdo_word = 0;
-    pdo_word |= ((uint32_t)idx & 0b111U) << 28U;    // Object position at Bit 28 to 30
-    pdo_word |= (1U << 27U);                        // Set GiveBack
-    pdo_word |= (0U << 26U);                        // Clear Capability Mismatch
+    // Step 2: Encode and assign PDO index
+    uint32_t pdo_word = pdo_list[idx].encode_fixed_pdo_request(idx, current_ma);
+    if (pdo_word == 0) {
+        ESP_LOGE(TAG, "Invalid PDO encoded: 0x%x", pdo_word);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Step 3: Send out PDO word
 
 
     return ESP_OK;

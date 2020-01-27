@@ -23,7 +23,7 @@ using namespace protocol;
 #define GET_USB_COMM_CAP(pdo_word)              ((((pdo_word) & BIT(26U)) != 0))
 #define GET_DUAL_ROLE_DATA(pdo_word)            ((((pdo_word) & BIT(25U)) != 0))
 #define GET_UNCHUNKED_MSG_SUPPORT(pdo_word)     ((((pdo_word) & BIT(24U)) != 0))
-#define GET_PEAK_CURRENT(pdo_word)              ((def::overload_cap)(((pdo_word) >> 20U) & 0x3U))
+#define GET_PEAK_CURRENT(pdo_word)              ((def::peak_current)(((pdo_word) >> 20U) & 0x3U))
 #define GET_FIXED_CURRENT(pdo_word)             ((((pdo_word) >> 10U) & 0x3ffU) * 10U)
 #define GET_FIXED_VOLTAGE(pdo_word)             ((((pdo_word)) & 0x3ffU) * 50U)
 #define GET_VAR_MAX_VOLTAGE(pdo_word)           (((pdo_word >> 20U) & 0x3ffU) * 50U)
@@ -90,7 +90,7 @@ esp_err_t power_data_obj::decode_pdo(uint32_t pdo_word)
             usb_comm                = GET_USB_COMM_CAP(pdo_word);
             dual_role_data          = GET_DUAL_ROLE_DATA(pdo_word);
             unchunked_msg_support   = GET_UNCHUNKED_MSG_SUPPORT(pdo_word);
-            peak_current_lvl        = GET_PEAK_CURRENT(pdo_word);
+            peak_curr_lvl        = GET_PEAK_CURRENT(pdo_word);
             current                 = GET_FIXED_CURRENT(pdo_word); // 10mA step
             voltage_max             = GET_FIXED_VOLTAGE(pdo_word); // 50mV step
             voltage_min             = voltage_max;
@@ -131,7 +131,7 @@ bool power_data_obj::operator==(power_data_obj &other)
             dual_role_power         == other.dual_role_power &&
             unchunked_msg_support   == other.unchunked_msg_support &&
             pdo_type                == other.pdo_type &&
-           peak_current_lvl == other.peak_current_lvl &&
+           peak_curr_lvl == other.peak_curr_lvl &&
             voltage_min             == other.voltage_min &&
             voltage_max             == other.voltage_max &&
             current                 == other.current &&
