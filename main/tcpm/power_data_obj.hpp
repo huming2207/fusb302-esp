@@ -30,7 +30,7 @@ namespace protocol
         bool dual_role_power        = false;
         bool unchunked_msg_support  = false;
         def::pdo_type pdo_type      = def::FIXED_PDO;
-        def::overload_cap overload  = def::OVERLOAD_NONE;
+        def::overload_cap peak_current_lvl  = def::OVERLOAD_NONE;
         uint32_t voltage_min        = 0;
         uint32_t voltage_max        = 0;
         uint32_t current            = 0;
