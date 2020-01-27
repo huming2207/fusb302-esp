@@ -14,8 +14,8 @@ namespace protocol
         power_data_obj(power_data_obj const &) = default;
         explicit power_data_obj(uint32_t pdo_word);
 
-        uint32_t encode_fixed_pdo();
-        uint32_t encode_augmented_pdo();
+        uint32_t encode_fixed_pdo_request(int obj_pos = 0, int op_current = -1);
+        uint32_t encode_augmented_pdo(uint8_t obj_pos = 0);
 
         esp_err_t decode_pdo(uint32_t pdo_word);
 

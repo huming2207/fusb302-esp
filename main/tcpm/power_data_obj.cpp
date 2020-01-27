@@ -1,3 +1,4 @@
+#include <cmath>
 #include <esp_log.h>
 #include <esp_bit_defs.h>
 
@@ -7,17 +8,45 @@ using namespace protocol;
 
 #define TAG "tcpm_pdo"
 
+#define SET_MAXIMUM_CURRENT(val)      ((uint32_t)(((uint16_t)val & 0x3ffU) << 0U))
+#define SET_OPERATING_CURRENT(val)    ((uint32_t)(((uint16_t)val & 0x3ffU) << 10U))
+#define SET_UNCHUNKED_MSG(bit)        ((uint32_t)(((uint8_t)bit) << 23U))
+#define SET_NO_USB_SUSPEND(bit)       ((uint32_t)(((uint8_t)bit) << 24U))
+#define SET_USB_COMM_CAP(bit)         ((uint32_t)(((uint8_t)bit) << 25U))
+#define SET_CAP_MISMATCH(bit)         ((uint32_t)(((uint8_t)bit) << 26U))
+#define SET_GIVEBACK(bit)             ((uint32_t)(((uint8_t)bit) << 27U))
+#define SET_OBJ_POSITION(pos)         ((uint32_t)(((uint8_t)pos & 0b111U) << 28U))
+
 power_data_obj::power_data_obj(uint32_t pdo_word)
 {
     decode_pdo(pdo_word);
 }
 
-uint32_t power_data_obj::encode_fixed_pdo()
+uint32_t power_data_obj::encode_fixed_pdo_request(int obj_pos, int op_current)
 {
-    return 0;
+    if (op_current <= 0 || op_current > current) {
+        op_current = current;
+    }
+
+    if (obj_pos <= 0 || obj_pos > 7) {
+        return 0; // Not possible
+    }
+
+    uint32_t pdo_word = 0;
+
+    pdo_word |= SET_OBJ_POSITION(obj_pos);
+    pdo_word |= SET_GIVEBACK(1);
+    pdo_word |= SET_CAP_MISMATCH(0);
+    pdo_word |= SET_USB_COMM_CAP(0);
+    pdo_word |= SET_NO_USB_SUSPEND(0);
+    pdo_word |= SET_UNCHUNKED_MSG(0);
+    pdo_word |= SET_MAXIMUM_CURRENT(std::floor(current / 10));
+    pdo_word |= SET_OPERATING_CURRENT(std::floor(op_current / 10));
+
+    return pdo_word;
 }
 
-uint32_t power_data_obj::encode_augmented_pdo()
+uint32_t power_data_obj::encode_augmented_pdo(uint8_t obj_pos)
 {
     return 0;
 }
