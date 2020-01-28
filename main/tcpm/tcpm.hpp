@@ -9,18 +9,6 @@
 #include "tcpm_def.hpp"
 #include "power_data_obj.hpp"
 
-namespace protocol::def
-{
-    struct header {
-        uint8_t num_obj = 0;
-        uint8_t msg_id = 0;
-        spec_revision revision = REV_2_0;
-        port_data_role data_role = DFP;
-        port_power_role power_role = SINK;
-        pkt_type type = GOOD_CRC;
-    };
-}
-
 namespace protocol
 {
     class tcpm
@@ -42,8 +30,6 @@ namespace protocol
 
     private:
         device::tcpc& port_dev;
-
-        def::header pkt_header = {};
         std::vector<power_data_obj> pdo_list;
 
         QueueHandle_t msg_queue = nullptr;

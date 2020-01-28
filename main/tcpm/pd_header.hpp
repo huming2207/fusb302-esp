@@ -10,6 +10,8 @@ namespace protocol
     class pd_header
     {
     public:
+        pd_header() = default;
+        explicit pd_header(uint16_t header);
         uint16_t encode();
         esp_err_t decode(uint16_t header);
 

@@ -2,14 +2,9 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include "tcpm.hpp"
+#include "pd_header.hpp"
 
 #define TAG "tcpm"
-
-#define PKT_HEADER_MSG_TYPE_MASK        (0x1FU)
-#define PKT_HEADER_PORT_DATA_ROLE_MASK  (0x20U)
-#define PKT_HEADER_SPEC_REV_MASK        (0xC0U)
-#define PKT_HEADER_NUM_DATA_OBJ_POS     (12U)
-#define PKT_HEADER_NUM_DATA_OBJ_MASK    (0x7000U)
 
 using namespace protocol;
 
@@ -21,37 +16,36 @@ tcpm::tcpm(device::tcpc &_device) : port_dev(_device)
     });
 
     // Initialise message queue
-    msg_queue = xQueueCreate(10, sizeof(def::pkt_type));
+    msg_queue = xQueueCreate(10, sizeof(def::message_type));
 }
 
 
 esp_err_t tcpm::on_pkt_rx()
 {
     // Read packet from FIFO
-    uint16_t header = 0;
+    pd_header pkt_header;
+    uint16_t header_raw = 0;
     uint32_t data_objs[7] = { 0 };
     size_t data_obj_cnt = 0;
-    auto ret = port_dev.receive_pkt(&header, data_objs, sizeof(data_objs), &data_obj_cnt);
+    auto ret = port_dev.receive_pkt(&header_raw, data_objs, sizeof(data_objs), &data_obj_cnt);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read Rx FIFO");
         return ret;
     }
 
     // Parse packet header
-    pkt_header.num_obj = ((header & PKT_HEADER_NUM_DATA_OBJ_MASK) >> PKT_HEADER_NUM_DATA_OBJ_POS);
-    if(pkt_header.num_obj > 0) pkt_header.type = (def::pkt_type)((header & 0x1fU) + def::DATA_PACKET_BASE);
-    else pkt_header.type = (def::pkt_type)(header & 0x1fU);
-    pkt_header.data_role    = (def::port_data_role)((uint8_t)(header >> 5U) & 0b1U);
-    pkt_header.msg_id       = ((uint8_t)(header >> 9U) & 0b111U);
-    pkt_header.revision     = (def::spec_revision)((uint8_t)(header >> 6U) & 0b11U);
-    pkt_header.power_role   = (def::port_power_role)((uint8_t)(header >> 8U) & 0b1U);
+    ret = pkt_header.decode(header_raw);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to decode header: 0x%x", header_raw);
+        return ret;
+    }
 
-    if(xQueueSend(msg_queue, (const void *)&pkt_header.type, pdMS_TO_TICKS(5000)) != pdPASS) {
+    if(xQueueSend(msg_queue, (const void *)&pkt_header.msg_type, pdMS_TO_TICKS(5000)) != pdPASS) {
         return ESP_ERR_TIMEOUT; // Shouldn't reach here though...
     }
 
     // Refresh PDO list when Src Cap packet is received
-    if(pkt_header.type == def::SOURCE_CAPABILITIES) {
+    if(pkt_header.msg_type == def::SOURCE_CAPABILITIES) {
         pdo_list.clear();
         ret = add_pdo(data_objs, pkt_header.num_obj);
     }
@@ -92,7 +86,7 @@ esp_err_t tcpm::add_pdo(const uint32_t *data_objs, uint8_t len)
 esp_err_t tcpm::perform_sink(uint32_t timeout_ms)
 {
     esp_err_t ret = ESP_OK;
-    def::pkt_type rx_type;
+    def::message_type rx_type;
 
     // Step 1. Wait for Source Capabilities.
     ret = wait_src_cap(timeout_ms);
@@ -193,7 +187,7 @@ esp_err_t tcpm::send_request()
 
 esp_err_t tcpm::wait_src_cap(uint32_t timeout_ms)
 {
-    def::pkt_type rx_type;
+    def::message_type rx_type;
 
     if (xQueueReceive(msg_queue, &rx_type, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
         ESP_LOGW(TAG, "No message received in %u ms", timeout_ms);

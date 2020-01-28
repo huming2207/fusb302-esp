@@ -56,3 +56,8 @@ uint16_t pd_header::encode()
 
     return header;
 }
+
+pd_header::pd_header(uint16_t header)
+{
+    decode(header);
+}

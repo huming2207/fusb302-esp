@@ -15,7 +15,7 @@ namespace protocol::def
         REV_3_0 = 0b10
     };
 
-    enum pkt_type {
+    enum message_type {
         // Control packets
         GOOD_CRC                = 0b00001,
         GOTO_MIN                = 0b00010,
