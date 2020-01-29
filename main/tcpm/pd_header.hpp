@@ -14,6 +14,7 @@ namespace protocol
         explicit pd_header(uint16_t header);
         uint16_t encode();
         esp_err_t decode(uint16_t header);
+        bool is_ctrl_msg();
 
     public:
         bool extended = false;

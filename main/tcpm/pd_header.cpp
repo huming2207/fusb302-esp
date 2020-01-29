@@ -61,3 +61,8 @@ pd_header::pd_header(uint16_t header)
 {
     decode(header);
 }
+
+bool pd_header::is_ctrl_msg()
+{
+    return num_obj == 0;
+}
