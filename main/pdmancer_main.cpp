@@ -20,8 +20,7 @@ void pd_main::start()
 {
     auto fusb302 = device::fusb302(21, 22, 4);
     fusb302.on_pkt_received([&]() -> int {
-        size_t rx_len = 0;
-        fusb302.receive_pkt(&header, data_objs, sizeof(data_objs), &rx_len);
+        fusb302.receive_pkt(&header, data_objs, sizeof(data_objs));
         ESP_LOGI(TAG, "Header: 0x%x, data: 0x%x", header, data_objs[0]);
         return ESP_OK;
     });

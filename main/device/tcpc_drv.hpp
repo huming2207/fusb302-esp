@@ -73,6 +73,7 @@ namespace tcpc_def
 
     typedef std::function<int()> rx_ready_cb;
     typedef std::function<int()> cc_status_change_cb;
+    typedef std::function<esp_err_t(uint16_t header, const uint32_t *data_objs, size_t obj_cnt)> tx_func;
 }
 
 namespace device
@@ -84,7 +85,7 @@ namespace device
     {
     public:
         virtual esp_err_t transmit_pkt(uint16_t header, const uint32_t *data_objs, size_t obj_cnt) = 0;
-        virtual esp_err_t receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt) = 0;
+        virtual esp_err_t receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt) = 0;
         virtual void on_pkt_received(const tcpc_def::rx_ready_cb &rx_cb) = 0;
         virtual bool detect_vbus() = 0;
         virtual esp_err_t set_rp(tcpc_def::rp_mode rp) = 0;

@@ -26,8 +26,7 @@ esp_err_t tcpm::on_pkt_rx()
     pd_header pkt_header;
     uint16_t header_raw = 0;
     uint32_t data_objs[7] = { 0 };
-    size_t data_obj_cnt = 0;
-    auto ret = port_dev.receive_pkt(&header_raw, data_objs, sizeof(data_objs), &data_obj_cnt);
+    auto ret = port_dev.receive_pkt(&header_raw, data_objs, sizeof(data_objs));
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read Rx FIFO");
         return ret;
@@ -45,7 +44,7 @@ esp_err_t tcpm::on_pkt_rx()
     }
 
     // Refresh PDO list when Src Cap packet is received
-    if(pkt_header.msg_type == def::SOURCE_CAPABILITIES) {
+    if(!pkt_header.is_ctrl_msg()) {
         pdo_list.clear();
         ret = add_pdo(data_objs, pkt_header.num_obj);
     }

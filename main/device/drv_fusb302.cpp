@@ -107,9 +107,9 @@ esp_err_t fusb302::transmit_pkt(uint16_t header, const uint32_t *data_objs, size
  * @return
  *
  */
-esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt, size_t *actual_cnt)
+esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max_cnt)
 {
-    if (header == nullptr || ((data_objs == nullptr || actual_cnt == nullptr) && max_cnt > 0 ))
+    if (header == nullptr || (data_objs == nullptr && max_cnt > 0 ))
         return ESP_ERR_INVALID_ARG;
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -137,7 +137,6 @@ esp_err_t fusb302::receive_pkt(uint16_t *header, uint32_t *data_objs, size_t max
 
     // Step 3. Calculate packet length
     uint8_t data_obj_cnt = TCPC_PD_HEADER_DATA_OBJ_CNT(*header);
-    *actual_cnt = data_obj_cnt;
 
     // Step 4. Read data object (if it is not a control message)
     if (data_obj_cnt > 0) {
